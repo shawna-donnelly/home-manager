@@ -77,14 +77,51 @@ export function ChoreChart({ tasks }: { tasks: TasksView }) {
     }
   };
 
+  const [redeemFor, setRedeemFor] = useState<string | null>(null);
+  const chooseReward = async (reward: string) => {
+    if (!redeemFor) return;
+    await send("/api/redeem", "POST", { kid: redeemFor, reward });
+    setRedeemFor(null);
+  };
+
   return (
     <div
       className="board"
       style={{ gridTemplateColumns: `repeat(${tasks.kids.length}, 1fr)` }}
     >
       {tasks.kids.map((kid) => (
-        <KidColumn key={kid} kid={kid} tasks={tasks} onRemove={requestDelete} />
+        <KidColumn
+          key={kid}
+          kid={kid}
+          tasks={tasks}
+          onRemove={requestDelete}
+          onRedeem={() => setRedeemFor(kid)}
+        />
       ))}
+      {redeemFor && (
+        <div className="overlay" onClick={() => setRedeemFor(null)}>
+          <div className="add pinpad" onClick={(e) => e.stopPropagation()}>
+            <h2 className="add__heading">🎁 {redeemFor}, pick your reward!</h2>
+            {tasks.rewards.map((reward) => (
+              <button
+                key={reward}
+                type="button"
+                className="nav__button reward__option"
+                onClick={() => void chooseReward(reward)}
+              >
+                {reward}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="nav__button"
+              onClick={() => setRedeemFor(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {pendingDelete && (
         <PinPrompt
           error={pinError}
@@ -100,13 +137,25 @@ function KidColumn({
   kid,
   tasks,
   onRemove,
+  onRedeem,
 }: {
   kid: string;
   tasks: TasksView;
   onRemove: (id: string) => void;
+  onRedeem: () => void;
 }) {
+  const points = tasks.points.find((p) => p.kid === kid);
+  const barFull =
+    points !== undefined && points.target > 0 && points.earned >= points.target;
   const chores = tasks.chores.filter((c) => c.kid === kid);
-  const daily = chores.filter((c) => c.cadence !== "weekly");
+  const weekday = new Date().getDay();
+  // Today's duties: dailies plus any day-pinned chore due today. A pinned
+  // chore simply doesn't appear on its off days.
+  const daily = chores.filter(
+    (c) =>
+      c.cadence === "daily" ||
+      (c.cadence === "days" && (c.days?.includes(weekday) ?? false)),
+  );
   const weekly = chores.filter((c) => c.cadence === "weekly");
   // Celebration keys off the dailies — a Tuesday well done deserves confetti
   // even if "clean the fish tank" isn't due until Sunday.
@@ -131,6 +180,30 @@ function KidColumn({
     <section className="board__col">
       {celebrate && <Confetti />}
       <h2 className="board__heading">{kid}</h2>
+      {points && points.target > 0 && (
+        <div className="progress">
+          <div className="progress__track">
+            <div
+              className={`progress__fill${barFull ? " progress__fill--full" : ""}`}
+              style={{
+                width: `${Math.min(100, (points.earned / points.target) * 100)}%`,
+              }}
+            />
+          </div>
+          <span className="progress__label">
+            {points.earned} / {points.target} pts ·{" "}
+            {Math.round((points.earned / points.target) * 100)}%
+          </span>
+        </div>
+      )}
+      {points?.redeemed && (
+        <p className="reward__earned">🏆 {points.redeemed} earned this week!</p>
+      )}
+      {barFull && !points.redeemed && (
+        <button type="button" className="nav__button reward__redeem" onClick={onRedeem}>
+          🎁 Redeem points
+        </button>
+      )}
       <ul className="tasklist">
         {daily.map((chore) => (
           <TaskRow
@@ -162,8 +235,8 @@ function KidColumn({
       <AddRow
         placeholder="New chore"
         withCadence
-        onAdd={(title, cadence) =>
-          void send("/api/chores", "POST", { kid, title, cadence })
+        onAdd={(title, cadence, days) =>
+          void send("/api/chores", "POST", { kid, title, cadence, days })
         }
       />
     </section>
@@ -334,27 +407,43 @@ function TaskRow({
   );
 }
 
+const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+type NewCadence = "daily" | "weekly" | "days";
+
 function AddRow({
   placeholder,
   onAdd,
   withCadence = false,
 }: {
   placeholder: string;
-  onAdd: (title: string, cadence: "daily" | "weekly") => void;
+  onAdd: (title: string, cadence: NewCadence, days?: number[]) => void;
   withCadence?: boolean;
 }) {
   const [title, setTitle] = useState("");
-  const [cadence, setCadence] = useState<"daily" | "weekly">("daily");
+  const [cadence, setCadence] = useState<NewCadence>("daily");
+  const [days, setDays] = useState<number[]>([]);
+  const needsDays = cadence === "days" && days.length === 0;
   return (
     <form
       className="task-add"
       onSubmit={(e) => {
         e.preventDefault();
         const trimmed = title.trim();
-        if (!trimmed) return;
-        onAdd(trimmed, cadence);
+        if (!trimmed || needsDays) return;
+        onAdd(trimmed, cadence, cadence === "days" ? days : undefined);
         setTitle("");
         setCadence("daily");
+        setDays([]);
       }}
     >
       <input
@@ -368,16 +457,41 @@ function AddRow({
         <select
           className="add__input task-add__cadence"
           value={cadence}
-          onChange={(e) => setCadence(e.target.value as "daily" | "weekly")}
+          onChange={(e) => setCadence(e.target.value as NewCadence)}
           aria-label="How often"
         >
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
+          <option value="days">On days…</option>
         </select>
       )}
-      <button type="submit" className="nav__button" disabled={!title.trim()}>
+      <button
+        type="submit"
+        className="nav__button"
+        disabled={!title.trim() || needsDays}
+      >
         +
       </button>
+      {withCadence && cadence === "days" && (
+        <div className="task-add__days" role="group" aria-label="Which days">
+          {DAY_LETTERS.map((letter, day) => (
+            <button
+              key={day}
+              type="button"
+              className={`task-add__day${days.includes(day) ? " task-add__day--on" : ""}`}
+              aria-label={DAY_NAMES[day]}
+              aria-pressed={days.includes(day)}
+              onClick={() =>
+                setDays((d) =>
+                  d.includes(day) ? d.filter((x) => x !== day) : [...d, day],
+                )
+              }
+            >
+              {letter}
+            </button>
+          ))}
+        </div>
+      )}
     </form>
   );
 }

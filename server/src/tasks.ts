@@ -2,21 +2,47 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export type Cadence = "daily" | "weekly";
+export type Cadence = "daily" | "weekly" | "days";
 
 export interface Chore {
   id: string;
   /** Kid name, matching an entry in KIDS. */
   kid: string;
   title: string;
-  /** "daily" resets at midnight; "weekly" resets Monday. */
+  /**
+   * "daily" resets at midnight; "weekly" resets Monday; "days" behaves like
+   * a daily but only on the weekdays in `days`.
+   */
   cadence: Cadence;
+  /** For cadence "days": weekdays it's due, 0 = Sunday … 6 = Saturday. */
+  days?: number[];
 }
 
 export interface Todo {
   id: string;
   title: string;
   done: boolean;
+}
+
+/** One point per daily completion, three per weekly — a full week's target. */
+export const DAILY_POINTS = 1;
+export const WEEKLY_POINTS = 3;
+
+interface Redemption {
+  week: string;
+  kid: string;
+  reward: string;
+  points: number;
+  at: string;
+}
+
+/** Per-kid weekly score, computed from completion history — never stored. */
+export interface PointsView {
+  kid: string;
+  earned: number;
+  target: number;
+  /** Set when this week's reward is already claimed. */
+  redeemed?: string;
 }
 
 /**
@@ -27,6 +53,7 @@ interface TasksData {
   chores: Chore[];
   completions: Record<string, string[]>;
   todos: Todo[];
+  redemptions?: Redemption[];
 }
 
 /** What clients see: today's completions only, plus who's who from config. */
@@ -38,6 +65,9 @@ export interface TasksView {
   todos: Todo[];
   /** True when deleting a chore needs the parent passcode. */
   pinRequired: boolean;
+  points: PointsView[];
+  /** What a full bar can be traded for. */
+  rewards: string[];
 }
 
 /**
@@ -51,6 +81,7 @@ export class TaskStore {
   #kids: string[];
   #parents: string[];
   #pinRequired: boolean;
+  #rewards: string[];
   #data: TasksData = { chores: [], completions: {}, todos: [] };
   #listeners = new Set<() => void>();
 
@@ -59,12 +90,14 @@ export class TaskStore {
     kids: string[],
     parents: string[],
     pinRequired: boolean,
+    rewards: string[],
   ) {
     this.#dir = dir;
     this.#file = join(dir, "tasks.json");
     this.#kids = kids;
     this.#parents = parents;
     this.#pinRequired = pinRequired;
+    this.#rewards = rewards;
   }
 
   async load(): Promise<void> {
@@ -72,6 +105,7 @@ export class TaskStore {
       this.#data = JSON.parse(await readFile(this.#file, "utf8")) as TasksData;
       // Chores written before cadence existed are daily.
       for (const chore of this.#data.chores) chore.cadence ??= "daily";
+      this.#data.redemptions ??= [];
     } catch {
       // First run — start empty.
     }
@@ -90,6 +124,8 @@ export class TaskStore {
       ],
       todos: this.#data.todos,
       pinRequired: this.#pinRequired,
+      points: this.#kids.map((kid) => this.#pointsFor(kid)),
+      rewards: this.#rewards,
     };
   }
 
@@ -98,9 +134,20 @@ export class TaskStore {
     return () => this.#listeners.delete(listener);
   }
 
-  async addChore(kid: string, title: string, cadence: Cadence): Promise<boolean> {
+  async addChore(
+    kid: string,
+    title: string,
+    cadence: Cadence,
+    days?: number[],
+  ): Promise<boolean> {
     if (!this.#kids.includes(kid)) return false;
-    this.#data.chores.push({ id: randomUUID(), kid, title, cadence });
+    this.#data.chores.push({
+      id: randomUUID(),
+      kid,
+      title,
+      cadence,
+      ...(cadence === "days" && days ? { days } : {}),
+    });
     await this.#persist();
     return true;
   }
@@ -148,6 +195,67 @@ export class TaskStore {
     if (this.#data.todos.length === before) return false;
     await this.#persist();
     return true;
+  }
+
+  /**
+   * This week's score for one kid, from the completion history. Weeks run
+   * Monday–Sunday; the target assumes every daily chore all seven days plus
+   * every weekly chore, so the bar only fills on a perfect week.
+   */
+  #pointsFor(kid: string): PointsView {
+    const wk = weekKey();
+    const [y, m, d] = wk.slice(1).split("-").map(Number);
+    const mine = this.#data.chores.filter((c) => c.kid === kid);
+    const dailies = mine.filter((c) => c.cadence === "daily");
+    const pinned = mine.filter((c) => c.cadence === "days");
+    const weeklies = mine.filter((c) => c.cadence === "weekly");
+
+    let earned = 0;
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(y ?? 0, (m ?? 1) - 1, (d ?? 1) + i);
+      const weekday = day.getDay();
+      const done = new Set(this.#data.completions[dateKey(day)] ?? []);
+      earned += dailies.filter((c) => done.has(c.id)).length * DAILY_POINTS;
+      earned +=
+        pinned.filter((c) => c.days?.includes(weekday) && done.has(c.id))
+          .length * DAILY_POINTS;
+    }
+    const weekDone = new Set(this.#data.completions[wk] ?? []);
+    earned += weeklies.filter((c) => weekDone.has(c.id)).length * WEEKLY_POINTS;
+
+    const target =
+      dailies.length * 7 * DAILY_POINTS +
+      pinned.reduce((sum, c) => sum + (c.days?.length ?? 0), 0) * DAILY_POINTS +
+      weeklies.length * WEEKLY_POINTS;
+    const redeemed = (this.#data.redemptions ?? []).find(
+      (r) => r.week === wk && r.kid === kid,
+    )?.reward;
+
+    return { kid, earned, target, ...(redeemed ? { redeemed } : {}) };
+  }
+
+  /** Trade a full bar for a reward. Once per kid per week. */
+  async redeem(
+    kid: string,
+    reward: string,
+  ): Promise<"ok" | "unknown" | "incomplete" | "already"> {
+    if (!this.#kids.includes(kid) || !this.#rewards.includes(reward)) {
+      return "unknown";
+    }
+    const points = this.#pointsFor(kid);
+    if (points.redeemed) return "already";
+    if (points.target === 0 || points.earned < points.target) {
+      return "incomplete";
+    }
+    (this.#data.redemptions ??= []).push({
+      week: weekKey(),
+      kid,
+      reward,
+      points: points.earned,
+      at: new Date().toISOString(),
+    });
+    await this.#persist();
+    return "ok";
   }
 
   /** Keep two months of history — enough for streaks later, bounded forever. */

@@ -59,15 +59,16 @@ export function createNotifier(config: EmailConfig | null): Notifier {
 export function buildChoreReport(
   view: TasksView,
   includeWeekly: boolean,
+  weekday = new Date().getDay(),
 ): string | null {
   const lines: string[] = [];
   for (const kid of view.kids) {
-    const undone = view.chores.filter(
-      (c) =>
-        c.kid === kid &&
-        !view.doneToday.includes(c.id) &&
-        (c.cadence !== "weekly" || includeWeekly),
-    );
+    const undone = view.chores.filter((c) => {
+      if (c.kid !== kid || view.doneToday.includes(c.id)) return false;
+      if (c.cadence === "weekly") return includeWeekly;
+      if (c.cadence === "days") return c.days?.includes(weekday) ?? false;
+      return true;
+    });
     if (undone.length > 0) {
       lines.push(
         `${kid}: ${undone
@@ -81,8 +82,28 @@ export function buildChoreReport(
 }
 
 /**
+ * The Sunday wrap-up: every kid's score and percentage — the basis for
+ * partial payouts. Unlike the daily nag, this sends even on perfect weeks
+ * (a 100% row is exactly the news worth reading). Null only if no kid has
+ * any chores.
+ */
+export function buildWeeklySummary(view: TasksView): string | null {
+  const scored = view.points.filter((p) => p.target > 0);
+  if (scored.length === 0) return null;
+
+  const lines = scored.map((p) => {
+    const pct = Math.round((p.earned / p.target) * 100);
+    const trophy = p.earned >= p.target ? " 🏆" : "";
+    const redeemed = p.redeemed ? ` — redeemed: ${p.redeemed}` : "";
+    return `${p.kid}: ${p.earned} / ${p.target} pts (${pct}%)${trophy}${redeemed}`;
+  });
+  return `Chore week wrap-up:\n\n${lines.join("\n")}`;
+}
+
+/**
  * Email the unfinished-chores report every day at `time` (local "HH:MM").
- * Fires once per day; days where everything is done send nothing.
+ * Fires once per day; days where everything is done send nothing. Sundays
+ * send the weekly percentage summary instead.
  */
 export function scheduleDailyChoreReport(
   notifier: Notifier,
@@ -98,10 +119,22 @@ export function scheduleDailyChoreReport(
     if (next <= now) next.setDate(next.getDate() + 1);
 
     const timer = setTimeout(() => {
-      // Weeks start Monday, so Sunday is the weekly-chore deadline.
+      // Weeks start Monday, so Sunday is the week's end: send the scored
+      // summary (with anything still unfinished appended) instead of the nag.
       const isWeekEnd = new Date().getDay() === 0;
-      const report = buildChoreReport(view(), isWeekEnd);
-      if (report) void notifier.send("Unfinished chores today", report);
+      if (isWeekEnd) {
+        const summary = buildWeeklySummary(view());
+        const unfinished = buildChoreReport(view(), true);
+        if (summary) {
+          void notifier.send(
+            "Chore week wrap-up",
+            summary + (unfinished ? `\n\n${unfinished}` : ""),
+          );
+        }
+      } else {
+        const report = buildChoreReport(view(), false);
+        if (report) void notifier.send("Unfinished chores today", report);
+      }
       schedule();
     }, next.getTime() - now.getTime());
     // The HTTP server keeps the process alive; this timer shouldn't.

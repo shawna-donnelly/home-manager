@@ -29,14 +29,23 @@ export interface Chore {
   id: string;
   kid: string;
   title: string;
-  /** "daily" resets at midnight; "weekly" resets Monday. */
-  cadence: "daily" | "weekly";
+  /** "daily" resets at midnight; "weekly" resets Monday; "days" = pinned. */
+  cadence: "daily" | "weekly" | "days";
+  /** For cadence "days": weekdays it's due, 0 = Sunday … 6 = Saturday. */
+  days?: number[];
 }
 
 export interface Todo {
   id: string;
   title: string;
   done: boolean;
+}
+
+export interface PointsView {
+  kid: string;
+  earned: number;
+  target: number;
+  redeemed?: string;
 }
 
 export interface TasksView {
@@ -46,6 +55,8 @@ export interface TasksView {
   doneToday: string[];
   todos: Todo[];
   pinRequired: boolean;
+  points: PointsView[];
+  rewards: string[];
 }
 
 export interface Snapshot {

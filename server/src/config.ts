@@ -30,6 +30,12 @@ export const CHORE_PIN = process.env.CHORE_PIN ?? "";
 /** Local HH:MM when the unfinished-chores email goes out. */
 export const CHORE_REPORT_TIME = process.env.CHORE_REPORT_TIME ?? "20:00";
 
+/** What a perfect chore week can be redeemed for. */
+export const REWARDS = (() => {
+  const list = names(process.env.REWARDS);
+  return list.length > 0 ? list : ["Cash", "Robux"];
+})();
+
 /**
  * SMTP for notification emails. All four required to enable; for Gmail use
  * smtp.gmail.com:465 with an app password (regular passwords won't work).

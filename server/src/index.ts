@@ -10,6 +10,7 @@ import {
   KIDS,
   PARENTS,
   PORT,
+  REWARDS,
   loadEmailConfig,
   loadSensorSources,
   loadSources,
@@ -24,7 +25,13 @@ const webDist = resolve(here, "../../web/dist");
 const app = Fastify({ logger: { level: "info" } });
 const calendarSources = loadSources();
 const poller = new Poller(calendarSources, loadSensorSources());
-const tasks = new TaskStore(DATA_DIR, KIDS, PARENTS, CHORE_PIN.length > 0);
+const tasks = new TaskStore(
+  DATA_DIR,
+  KIDS,
+  PARENTS,
+  CHORE_PIN.length > 0,
+  REWARDS,
+);
 const notifier = createNotifier(loadEmailConfig());
 
 /** One frame for the SSE stream: calendar snapshot plus chores/todos. */
@@ -167,17 +174,31 @@ app.post("/api/chores", async (request, reply) => {
     kid?: unknown;
     title?: unknown;
     cadence?: unknown;
+    days?: unknown;
   } | null;
   const title = cleanTitle(body?.title);
   const cadence = body?.cadence ?? "daily";
   if (
     !title ||
     typeof body?.kid !== "string" ||
-    (cadence !== "daily" && cadence !== "weekly")
+    (cadence !== "daily" && cadence !== "weekly" && cadence !== "days")
   ) {
     return reply.code(400).send({ error: "invalid chore" });
   }
-  if (!(await tasks.addChore(body.kid, title, cadence))) {
+  let days: number[] | undefined;
+  if (cadence === "days") {
+    const raw = body?.days;
+    const valid =
+      Array.isArray(raw) &&
+      raw.length > 0 &&
+      raw.length <= 7 &&
+      raw.every((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+    if (!valid) {
+      return reply.code(400).send({ error: "days must list weekdays 0-6" });
+    }
+    days = [...new Set(raw as number[])].sort();
+  }
+  if (!(await tasks.addChore(body.kid, title, cadence, days))) {
     return reply.code(400).send({ error: "unknown kid" });
   }
   return { ok: true };
@@ -204,6 +225,31 @@ app.delete("/api/chores/:id", async (request, reply) => {
     `Chore removed: ${chore.title} (${chore.kid})`,
     `"${chore.title}" was removed from ${chore.kid}'s chart at ` +
       `${new Date().toLocaleString()}.`,
+  );
+  return { ok: true };
+});
+
+app.post("/api/redeem", async (request, reply) => {
+  const body = request.body as { kid?: unknown; reward?: unknown } | null;
+  const { kid, reward } = body ?? {};
+  if (typeof kid !== "string" || typeof reward !== "string") {
+    return reply.code(400).send({ error: "invalid redemption" });
+  }
+  const result = await tasks.redeem(kid, reward);
+  if (result === "unknown") {
+    return reply.code(400).send({ error: "unknown kid or reward" });
+  }
+  if (result === "incomplete") {
+    return reply.code(409).send({ error: "the week isn't finished yet" });
+  }
+  if (result === "already") {
+    return reply.code(409).send({ error: "already redeemed this week" });
+  }
+  const points = tasks.view().points.find((p) => p.kid === kid);
+  void notifier.send(
+    `🏆 ${kid} earned their reward: ${reward}`,
+    `${kid} finished every chore this week (${points?.earned ?? "?"} points) ` +
+      `and chose ${reward}. Time to pay up!`,
   );
   return { ok: true };
 });
