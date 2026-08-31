@@ -3,8 +3,20 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
-import { PORT, loadSensorSources, loadSources } from "./config.js";
+import {
+  CHORE_PIN,
+  CHORE_REPORT_TIME,
+  DATA_DIR,
+  KIDS,
+  PARENTS,
+  PORT,
+  loadEmailConfig,
+  loadSensorSources,
+  loadSources,
+} from "./config.js";
+import { createNotifier, scheduleDailyChoreReport } from "./notify.js";
 import { Poller } from "./poller.js";
+import { TaskStore } from "./tasks.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDist = resolve(here, "../../web/dist");
@@ -12,6 +24,11 @@ const webDist = resolve(here, "../../web/dist");
 const app = Fastify({ logger: { level: "info" } });
 const calendarSources = loadSources();
 const poller = new Poller(calendarSources, loadSensorSources());
+const tasks = new TaskStore(DATA_DIR, KIDS, PARENTS, CHORE_PIN.length > 0);
+const notifier = createNotifier(loadEmailConfig());
+
+/** One frame for the SSE stream: calendar snapshot plus chores/todos. */
+const frame = () => ({ ...poller.snapshot, tasks: tasks.view() });
 
 app.get("/api/health", async () => ({
   ok: true,
@@ -126,14 +143,92 @@ app.get("/api/stream", (request, reply) => {
     reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`);
   };
 
-  send(poller.snapshot);
-  const unsubscribe = poller.subscribe(send);
+  send(frame());
+  const unsubPoller = poller.subscribe(() => send(frame()));
+  const unsubTasks = tasks.subscribe(() => send(frame()));
   const keepalive = setInterval(() => reply.raw.write(": ping\n\n"), 20_000);
 
   request.raw.on("close", () => {
     clearInterval(keepalive);
-    unsubscribe();
+    unsubPoller();
+    unsubTasks();
   });
+});
+
+app.get("/api/tasks", async () => tasks.view());
+
+const cleanTitle = (raw: unknown): string | null => {
+  const title = typeof raw === "string" ? raw.trim() : "";
+  return title && title.length <= 100 ? title : null;
+};
+
+app.post("/api/chores", async (request, reply) => {
+  const body = request.body as {
+    kid?: unknown;
+    title?: unknown;
+    cadence?: unknown;
+  } | null;
+  const title = cleanTitle(body?.title);
+  const cadence = body?.cadence ?? "daily";
+  if (
+    !title ||
+    typeof body?.kid !== "string" ||
+    (cadence !== "daily" && cadence !== "weekly")
+  ) {
+    return reply.code(400).send({ error: "invalid chore" });
+  }
+  if (!(await tasks.addChore(body.kid, title, cadence))) {
+    return reply.code(400).send({ error: "unknown kid" });
+  }
+  return { ok: true };
+});
+
+app.post("/api/chores/:id/toggle", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  if (!(await tasks.toggleChore(id))) {
+    return reply.code(404).send({ error: "no such chore" });
+  }
+  return { ok: true };
+});
+
+app.delete("/api/chores/:id", async (request, reply) => {
+  if (CHORE_PIN && request.headers["x-pin"] !== CHORE_PIN) {
+    return reply.code(403).send({ error: "wrong passcode" });
+  }
+  const { id } = request.params as { id: string };
+  const chore = tasks.view().chores.find((c) => c.id === id);
+  if (!chore || !(await tasks.removeChore(id))) {
+    return reply.code(404).send({ error: "no such chore" });
+  }
+  void notifier.send(
+    `Chore removed: ${chore.title} (${chore.kid})`,
+    `"${chore.title}" was removed from ${chore.kid}'s chart at ` +
+      `${new Date().toLocaleString()}.`,
+  );
+  return { ok: true };
+});
+
+app.post("/api/todos", async (request, reply) => {
+  const title = cleanTitle((request.body as { title?: unknown } | null)?.title);
+  if (!title) return reply.code(400).send({ error: "invalid todo" });
+  await tasks.addTodo(title);
+  return { ok: true };
+});
+
+app.post("/api/todos/:id/toggle", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  if (!(await tasks.toggleTodo(id))) {
+    return reply.code(404).send({ error: "no such todo" });
+  }
+  return { ok: true };
+});
+
+app.delete("/api/todos/:id", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  if (!(await tasks.removeTodo(id))) {
+    return reply.code(404).send({ error: "no such todo" });
+  }
+  return { ok: true };
 });
 
 if (existsSync(webDist)) {
@@ -144,8 +239,16 @@ if (existsSync(webDist)) {
   app.log.warn(`no web build at ${webDist}; run "npm run build" in web/`);
 }
 
-await poller.start();
+// Loading is read-only; do it before the bind so routes never see an empty
+// store. Then bind BEFORE anything writes: if another instance owns the port,
+// exit before touching any data file. A second live instance persisting its
+// own stale state would overwrite the real server's writes (split-brain on
+// tasks.json — observed, not hypothetical). Listening before the first poll
+// also serves the cached view seconds sooner on a cold boot.
+await tasks.load();
 await app.listen({ port: PORT, host: "0.0.0.0" });
+await poller.start();
+scheduleDailyChoreReport(notifier, () => tasks.view(), CHORE_REPORT_TIME);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {

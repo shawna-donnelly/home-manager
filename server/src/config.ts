@@ -1,3 +1,4 @@
+import type { EmailConfig } from "./notify.js";
 import {
   createGoogleAuth,
   createGoogleCalendarSource,
@@ -9,6 +10,45 @@ import type { CalendarSource, SensorSource } from "./sources/types.js";
 export const PORT = Number(process.env.PORT ?? 8080);
 export const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 300_000);
 export const CACHE_DIR = process.env.CACHE_DIR ?? "./.cache";
+/** Chores/todos live here — real data, not a rebuildable cache. */
+export const DATA_DIR = process.env.DATA_DIR ?? "./.data";
+
+const names = (raw: string | undefined) =>
+  (raw ?? "").split(",").map((n) => n.trim()).filter(Boolean);
+
+/** Kid names for the chore chart; empty hides the Chores tab entirely. */
+export const KIDS = names(process.env.KIDS);
+/** Shown on the To-Do tab heading. */
+export const PARENTS = names(process.env.PARENTS);
+
+/**
+ * Required (as an X-Pin header) to delete a chore, so kids can't quietly
+ * remove "Clean room" from the chart. Empty disables the check.
+ */
+export const CHORE_PIN = process.env.CHORE_PIN ?? "";
+
+/** Local HH:MM when the unfinished-chores email goes out. */
+export const CHORE_REPORT_TIME = process.env.CHORE_REPORT_TIME ?? "20:00";
+
+/**
+ * SMTP for notification emails. All four required to enable; for Gmail use
+ * smtp.gmail.com:465 with an app password (regular passwords won't work).
+ */
+export function loadEmailConfig(): EmailConfig | null {
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const to = process.env.NOTIFY_EMAIL;
+  if (!host || !user || !pass || !to) {
+    if (host || user || pass || to) {
+      console.warn(
+        "[config] email disabled: need all of SMTP_HOST, SMTP_USER, SMTP_PASS, NOTIFY_EMAIL",
+      );
+    }
+    return null;
+  }
+  return { host, port: Number(process.env.SMTP_PORT ?? 465), user, pass, to };
+}
 
 /**
  * How far around today sources fetch. The display can page ±4/+8 weeks, so

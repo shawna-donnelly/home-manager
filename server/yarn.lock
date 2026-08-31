@@ -304,12 +304,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^26.4.0":
+"@types/node@npm:*, @types/node@npm:^26.4.0":
   version: 26.4.0
   resolution: "@types/node@npm:26.4.0"
   dependencies:
     undici-types: "npm:~8.3.0"
   checksum: 10c0/e6fc94ea3b58fb8040b38c465dec1c53c1fd9d2c092c81f699d28799726baf59f12e1600318e79e8e6f985bb919dab6ae820180b942b8e38c51acaad63e8aada
+  languageName: node
+  linkType: hard
+
+"@types/nodemailer@npm:^8.0.1":
+  version: 8.0.1
+  resolution: "@types/nodemailer@npm:8.0.1"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/4370ac478a6811faaa64fcf769556515c72b78c66961cde22be75bb975ce8a964cfbe5e7c0988a99250f3250faa34357c73958b019b3c63dd138ea3784442032
   languageName: node
   linkType: hard
 
@@ -1011,8 +1020,10 @@ __metadata:
   dependencies:
     "@fastify/static": "npm:^8.0.0"
     "@types/node": "npm:^26.4.0"
+    "@types/nodemailer": "npm:^8.0.1"
     fastify: "npm:^5.0.0"
     node-ical: "npm:^0.20.0"
+    nodemailer: "npm:^9.0.6"
     nodemon: "npm:^3.1.14"
     tsx: "npm:^4.19.0"
     typescript: "npm:^5.6.0"
@@ -1261,6 +1272,13 @@ __metadata:
     rrule: "npm:2.8.1"
     uuid: "npm:^10.0.0"
   checksum: 10c0/3e95ece63f0420f96b611913e0134660120bf2e87da8b1afbc73b6db2cbe2ad20d9b76ad912fa80b20923c64f0002869d98edaa53d143aa5989d223ff12ef621
+  languageName: node
+  linkType: hard
+
+"nodemailer@npm:^9.0.6":
+  version: 9.0.6
+  resolution: "nodemailer@npm:9.0.6"
+  checksum: 10c0/f26371b863b8125aeb2d94ac4f8c65c19add44188fd877d82f37e625c50bb4453b4fdb5e0211fe707a4bf1986441c9870bb64a55f1ae6f58e56e0a0cd2361b29
   languageName: node
   linkType: hard
 

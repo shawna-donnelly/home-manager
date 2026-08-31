@@ -25,9 +25,33 @@ export interface SensorReading {
   stale: boolean;
 }
 
+export interface Chore {
+  id: string;
+  kid: string;
+  title: string;
+  /** "daily" resets at midnight; "weekly" resets Monday. */
+  cadence: "daily" | "weekly";
+}
+
+export interface Todo {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
+export interface TasksView {
+  kids: string[];
+  parents: string[];
+  chores: Chore[];
+  doneToday: string[];
+  todos: Todo[];
+  pinRequired: boolean;
+}
+
 export interface Snapshot {
   events: CalendarEvent[];
   sensors: SensorReading[];
+  tasks?: TasksView;
   fetchedAt: string;
   degraded: string[];
 }

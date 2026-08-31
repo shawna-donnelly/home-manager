@@ -46,10 +46,16 @@ body {
 }
 
 .wall__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  /* 1fr | auto | 1fr keeps the tabs on the page's true centerline even
+     though the date and clock differ in width. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
   gap: var(--gap);
+}
+
+.wall__header > .wall__clock {
+  justify-self: end;
 }
 
 .wall__date {
@@ -93,6 +99,202 @@ body {
   font-size: 0.9em;
   color: var(--text-dim);
   white-space: nowrap;
+}
+
+.nav--week {
+  justify-content: center;
+}
+
+.tab {
+  font-size: 0.9em;
+  color: var(--text-dim);
+}
+
+.tab--active {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+.board {
+  display: grid;
+  gap: var(--gap);
+  flex: 1;
+  min-height: 0;
+}
+
+.board--single {
+  grid-template-columns: minmax(0, 34rem);
+  justify-content: center;
+}
+
+.board__col {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: var(--gap);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.board__heading {
+  font-size: 1.1em;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.35rem;
+}
+
+.tasklist {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+}
+
+.task__check {
+  background: var(--bg);
+  border: 2px solid var(--text-dim);
+  border-radius: 50%;
+  color: var(--text);
+  font: inherit;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: none;
+  cursor: pointer;
+}
+
+.task--done .task__check {
+  background: #2e7d5b;
+  border-color: #2e7d5b;
+}
+
+.task__title {
+  flex: 1;
+  cursor: pointer;
+}
+
+.task--done .task__title {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.task__remove {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 1.2em;
+  min-width: 2rem;
+  min-height: 2rem;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.task-add {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* inline-block keeps the done-state strikethrough off the emoji. */
+.task__emoji {
+  display: inline-block;
+  margin-right: 0.45em;
+}
+
+.tasklist__party {
+  text-align: center;
+  padding: 0.5rem 0;
+  font-weight: 600;
+}
+
+.tasklist__divider {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.75em;
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.task-add > .add__input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.task-add > .task-add__cadence {
+  flex: none;
+  width: auto;
+}
+
+.board__col {
+  position: relative;
+}
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.confetti__bit {
+  position: absolute;
+  top: -12px;
+  border-radius: 1px;
+  animation: confetti-fall linear forwards;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(85vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.pinpad {
+  width: min(18rem, 90vw);
+  align-items: center;
+  text-align: center;
+}
+
+.pinpad__dots {
+  font-size: 1.4em;
+  letter-spacing: 0.3em;
+  min-height: 1.4em;
+  color: var(--text);
+}
+
+.pinpad__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.pinpad__key {
+  min-height: 3.25rem;
+  font-size: 1.2em;
 }
 
 .wall__status {

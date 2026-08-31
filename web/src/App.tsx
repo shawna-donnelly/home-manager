@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AddEvent, { type SourceInfo } from "./AddEvent";
+import { ChoreChart, TodoList } from "./Tasks";
 import {
   useEvents,
   useNow,
@@ -16,6 +17,8 @@ const MAX_WEEK = 8;
 /** A browsed-away display returns to today on its own — it's a wall, not a tab. */
 const RETURN_TO_TODAY_MS = 5 * 60_000;
 
+type Tab = "calendar" | "chores" | "todo";
+
 /**
  * Deliberately plain. This exists to prove the data path end to end — feeds
  * parse, SSE delivers, the browser renders, and it all survives a reboot.
@@ -27,6 +30,15 @@ export default function App() {
   const now = useNow();
   const [weekOffset, setWeekOffset] = useState(0);
 
+  const tasks = snapshot?.tasks;
+  const [tab, setTab] = useState<Tab>("calendar");
+  // Same kiosk rule as week paging: drift back to the calendar when idle.
+  useEffect(() => {
+    if (tab === "calendar") return;
+    const timer = window.setTimeout(() => setTab("calendar"), RETURN_TO_TODAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [tab]);
+
   const page = (delta: number) =>
     setWeekOffset((w) => Math.min(MAX_WEEK, Math.max(MIN_WEEK, w + delta)));
 
@@ -37,16 +49,20 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [weekOffset]);
 
-  // Arrow keys for a keyboard, mostly during development.
+  // Arrow keys for a keyboard, mostly during development. Ignored while a
+  // text field has focus or another tab is showing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (tab !== "calendar") return;
+      if (e.target instanceof HTMLElement && e.target.closest("input, select"))
+        return;
       if (e.key === "ArrowLeft") page(-1);
       if (e.key === "ArrowRight") page(1);
       if (e.key === "Home") setWeekOffset(0);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [tab]);
 
   const days = buildDays(now, DAYS_SHOWN, weekOffset * DAYS_SHOWN);
   const sensors = snapshot?.sensors ?? [];
@@ -73,34 +89,32 @@ export default function App() {
             day: "numeric",
           })}
         </h1>
-        <nav className="nav" aria-label="Calendar week">
+        <nav className="nav" aria-label="Sections">
           <button
             type="button"
-            className="nav__button"
-            onClick={() => page(-1)}
-            disabled={weekOffset <= MIN_WEEK}
-            aria-label="Previous week"
+            className={`nav__button tab${tab === "calendar" ? " tab--active" : ""}`}
+            onClick={() => setTab("calendar")}
           >
-            ‹
+            📅 Calendar
           </button>
-          {weekOffset !== 0 && (
+          {tasks && tasks.kids.length > 0 && (
             <button
               type="button"
-              className="nav__button nav__today"
-              onClick={() => setWeekOffset(0)}
+              className={`nav__button tab${tab === "chores" ? " tab--active" : ""}`}
+              onClick={() => setTab("chores")}
             >
-              {formatRange(days)} · Today
+              🧹 Chores
             </button>
           )}
-          <button
-            type="button"
-            className="nav__button"
-            onClick={() => page(1)}
-            disabled={weekOffset >= MAX_WEEK}
-            aria-label="Next week"
-          >
-            ›
-          </button>
+          {tasks && (
+            <button
+              type="button"
+              className={`nav__button tab${tab === "todo" ? " tab--active" : ""}`}
+              onClick={() => setTab("todo")}
+            >
+              📝 To-Do
+            </button>
+          )}
         </nav>
         <p className="wall__clock">
           {now.toLocaleTimeString(undefined, {
@@ -138,6 +152,41 @@ export default function App() {
           ))}
         </ul>
       )}
+
+      {tab === "chores" && tasks && <ChoreChart tasks={tasks} />}
+      {tab === "todo" && tasks && <TodoList tasks={tasks} />}
+
+      {tab === "calendar" && (
+        <>
+      <nav className="nav nav--week" aria-label="Calendar week">
+        <button
+          type="button"
+          className="nav__button"
+          onClick={() => page(-1)}
+          disabled={weekOffset <= MIN_WEEK}
+          aria-label="Previous week"
+        >
+          ‹
+        </button>
+        {weekOffset !== 0 && (
+          <button
+            type="button"
+            className="nav__button nav__today"
+            onClick={() => setWeekOffset(0)}
+          >
+            {formatRange(days)} · Today
+          </button>
+        )}
+        <button
+          type="button"
+          className="nav__button"
+          onClick={() => page(1)}
+          disabled={weekOffset >= MAX_WEEK}
+          aria-label="Next week"
+        >
+          ›
+        </button>
+      </nav>
 
       <div className="week">
         {days.map((day) => (
@@ -190,6 +239,8 @@ export default function App() {
             </li>
           ))}
         </ul>
+      )}
+        </>
       )}
 
       {addingDay && writable.length > 0 && (

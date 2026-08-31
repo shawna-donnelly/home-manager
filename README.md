@@ -157,6 +157,9 @@ that survives a power cut, before any feature work.
       strip on the display
 - [ ] Zigbee hardware paired into HA (dongle + first sensors)
 - [ ] HA WebSocket subscription instead of polling (instant motion/door updates)
-- [ ] Chores
+- [x] Chores per kid + parents' to-do (tabs; JSON store in `DATA_DIR`, synced
+      to every display over the same SSE stream)
+- [x] Email notifications: chore deletions immediately, unfinished chores
+      daily at `CHORE_REPORT_TIME` (SMTP config in `.env`)
 - [ ] Network controls adapter
 - [ ] Location adapter
