@@ -423,6 +423,97 @@ body {
   opacity: 0.45;
 }
 
+.mapwrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.map {
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* Invert OSM's light tiles so the map matches the dark wall at night. */
+.map .leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85)
+    saturate(0.7);
+}
+
+.map .leaflet-control-attribution {
+  background: rgb(0 0 0 / 0.5);
+  color: var(--text-dim);
+}
+
+.map .leaflet-control-attribution a {
+  color: var(--text-dim);
+}
+
+.person-marker {
+  /* Leaflet positions the icon box; the dot and label overflow it. */
+  overflow: visible !important;
+}
+
+.person-marker__dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.6);
+}
+
+.person-marker__name {
+  position: absolute;
+  top: 20px;
+  left: 8px;
+  transform: translateX(-50%);
+  background: rgb(0 0 0 / 0.7);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.people {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem calc(var(--gap) * 1.5);
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+}
+
+.person--stale {
+  opacity: 0.5;
+}
+
+.person__name {
+  font-weight: 600;
+}
+
+.person__where {
+  color: var(--text-dim);
+  font-size: 0.85em;
+}
+
 .week {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -585,6 +676,19 @@ body {
 .add__save {
   font-size: 1em;
   font-weight: 600;
+}
+
+.day__weather {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.day__weather-low {
+  opacity: 0.65;
 }
 
 .day__events {

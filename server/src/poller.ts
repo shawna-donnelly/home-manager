@@ -5,7 +5,11 @@ import {
   WINDOW_DAYS_FORWARD,
 } from "./config.js";
 import { sortEvents, type CalendarEvent, type Snapshot } from "./events.js";
-import type { SensorReading } from "./readings.js";
+import type {
+  ForecastDay,
+  PersonLocation,
+  SensorReading,
+} from "./readings.js";
 import type { CalendarSource, SensorSource } from "./sources/types.js";
 
 type Listener = (snapshot: Snapshot) => void;
@@ -19,7 +23,16 @@ export class Poller {
   /** Per-source last-known-good, so one failing feed doesn't drop its data. */
   #lastGoodEvents = new Map<string, CalendarEvent[]>();
   #lastGoodReadings = new Map<string, SensorReading[]>();
-  #snapshot: Snapshot = { events: [], sensors: [], fetchedAt: "", degraded: [] };
+  #lastGoodLocations = new Map<string, PersonLocation[]>();
+  #lastGoodForecast = new Map<string, ForecastDay[]>();
+  #snapshot: Snapshot = {
+    events: [],
+    sensors: [],
+    locations: [],
+    forecast: [],
+    fetchedAt: "",
+    degraded: [],
+  };
 
   constructor(calendarSources: CalendarSource[], sensorSources: SensorSource[]) {
     this.#calendarSources = calendarSources;
@@ -41,8 +54,10 @@ export class Poller {
       );
       const events = cached.events.filter((e) => known.has(e.sourceId));
       const sensors = cached.sensors.filter((r) => known.has(r.sourceId));
+      const locations = cached.locations.filter((l) => known.has(l.sourceId));
+      const forecast = cached.forecast.filter((f) => known.has(f.sourceId));
 
-      this.#snapshot = { ...cached, events, sensors };
+      this.#snapshot = { ...cached, events, sensors, locations, forecast };
       for (const event of events) {
         const bucket = this.#lastGoodEvents.get(event.sourceId) ?? [];
         bucket.push(event);
@@ -52,6 +67,16 @@ export class Poller {
         const bucket = this.#lastGoodReadings.get(reading.sourceId) ?? [];
         bucket.push(reading);
         this.#lastGoodReadings.set(reading.sourceId, bucket);
+      }
+      for (const location of locations) {
+        const bucket = this.#lastGoodLocations.get(location.sourceId) ?? [];
+        bucket.push(location);
+        this.#lastGoodLocations.set(location.sourceId, bucket);
+      }
+      for (const day of forecast) {
+        const bucket = this.#lastGoodForecast.get(day.sourceId) ?? [];
+        bucket.push(day);
+        this.#lastGoodForecast.set(day.sourceId, bucket);
       }
       console.log(
         `[poller] restored ${events.length} cached events, ${sensors.length} readings` +
@@ -84,10 +109,21 @@ export class Poller {
       to: addDays(now, WINDOW_DAYS_FORWARD),
     };
 
-    const [calendarResults, sensorResults] = await Promise.all([
-      Promise.allSettled(this.#calendarSources.map((s) => s.fetch(window))),
-      Promise.allSettled(this.#sensorSources.map((s) => s.fetch())),
-    ]);
+    const trackerSources = this.#sensorSources.flatMap((s) => {
+      const fetchLocations = s.fetchLocations?.bind(s);
+      return fetchLocations ? [{ id: s.id, fetchLocations }] : [];
+    });
+    const weatherSources = this.#sensorSources.flatMap((s) => {
+      const fetchForecast = s.fetchForecast?.bind(s);
+      return fetchForecast ? [{ id: s.id, fetchForecast }] : [];
+    });
+    const [calendarResults, sensorResults, locationResults, forecastResults] =
+      await Promise.all([
+        Promise.allSettled(this.#calendarSources.map((s) => s.fetch(window))),
+        Promise.allSettled(this.#sensorSources.map((s) => s.fetch())),
+        Promise.allSettled(trackerSources.map((s) => s.fetchLocations())),
+        Promise.allSettled(weatherSources.map((s) => s.fetchForecast())),
+      ]);
 
     const degraded: string[] = [];
 
@@ -111,13 +147,18 @@ export class Poller {
 
     settle(this.#calendarSources, calendarResults, this.#lastGoodEvents);
     settle(this.#sensorSources, sensorResults, this.#lastGoodReadings);
+    settle(trackerSources, locationResults, this.#lastGoodLocations);
+    settle(weatherSources, forecastResults, this.#lastGoodForecast);
 
     this.#snapshot = {
       events: sortEvents([...this.#lastGoodEvents.values()].flat()),
       // No global sort: each source already emits readings in display order.
       sensors: [...this.#lastGoodReadings.values()].flat(),
+      locations: [...this.#lastGoodLocations.values()].flat(),
+      forecast: [...this.#lastGoodForecast.values()].flat(),
       fetchedAt: now.toISOString(),
-      degraded,
+      // A source that failed both its sensor and location fetch lists once.
+      degraded: [...new Set(degraded)],
     };
 
     await writeSnapshot(this.#snapshot);

@@ -135,10 +135,8 @@ export function loadSensorSources(): SensorSource[] {
   const token = process.env.HA_TOKEN;
   if (!url || !token) return [];
 
-  const entities = (process.env.HA_ENTITIES ?? "")
-    .split(",")
-    .map((e) => e.trim())
-    .filter(Boolean);
+  const list = (raw: string | undefined) =>
+    (raw ?? "").split(",").map((e) => e.trim()).filter(Boolean);
 
   return [
     createHomeAssistantSource({
@@ -146,7 +144,13 @@ export function loadSensorSources(): SensorSource[] {
       label: "Home Assistant",
       url,
       token,
-      entities,
+      entities: list(process.env.HA_ENTITIES),
+      // person.* entities for the family map; unset shows everyone HA knows.
+      people: list(process.env.HA_PEOPLE),
+      // Weather entity for the calendar forecast; unset disables it.
+      ...(process.env.HA_WEATHER
+        ? { weatherEntity: process.env.HA_WEATHER }
+        : {}),
     }),
   ];
 }

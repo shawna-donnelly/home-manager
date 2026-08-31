@@ -25,6 +25,30 @@ export interface SensorReading {
   stale: boolean;
 }
 
+export interface ForecastDay {
+  sourceId: string;
+  /** Local calendar date, YYYY-MM-DD. */
+  date: string;
+  condition: string;
+  high: number;
+  low?: number;
+  unit: string;
+}
+
+export interface PersonLocation {
+  id: string;
+  sourceId: string;
+  entityId: string;
+  name: string;
+  /** "home", "not_home", or a named zone ("School"). */
+  zone: string;
+  latitude?: number;
+  longitude?: number;
+  gpsAccuracy?: number;
+  updatedAt: string;
+  stale: boolean;
+}
+
 export interface Chore {
   id: string;
   kid: string;
@@ -62,6 +86,8 @@ export interface TasksView {
 export interface Snapshot {
   events: CalendarEvent[];
   sensors: SensorReading[];
+  locations?: PersonLocation[];
+  forecast?: ForecastDay[];
   tasks?: TasksView;
   fetchedAt: string;
   degraded: string[];

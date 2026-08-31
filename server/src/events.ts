@@ -1,4 +1,8 @@
-import type { SensorReading } from "./readings.js";
+import type {
+  ForecastDay,
+  PersonLocation,
+  SensorReading,
+} from "./readings.js";
 
 /**
  * The single event shape every source normalizes into. Adding a source means
@@ -23,6 +27,10 @@ export interface CalendarEvent {
 export interface Snapshot {
   events: CalendarEvent[];
   sensors: SensorReading[];
+  /** Family members on the map, from person-tracking sensor sources. */
+  locations: PersonLocation[];
+  /** Daily forecast for the calendar, keyed by local date. */
+  forecast: ForecastDay[];
   /** When the data was last successfully refreshed. */
   fetchedAt: string;
   /** Sources (calendar or sensor) that failed on the most recent poll, by id. */

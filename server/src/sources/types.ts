@@ -1,5 +1,9 @@
 import type { CalendarEvent } from "../events.js";
-import type { SensorReading } from "../readings.js";
+import type {
+  ForecastDay,
+  PersonLocation,
+  SensorReading,
+} from "../readings.js";
 
 /**
  * Every calendar backend implements this. Google Calendar API, iCloud CalDAV,
@@ -52,4 +56,14 @@ export interface SensorSource {
   readonly id: string;
   readonly label: string;
   fetch(): Promise<SensorReading[]>;
+  /**
+   * Present on backends that also track people (Home Assistant person
+   * entities). Same failure contract as `fetch`.
+   */
+  fetchLocations?(): Promise<PersonLocation[]>;
+  /**
+   * Present on backends with a weather entity configured. Same failure
+   * contract as `fetch`.
+   */
+  fetchForecast?(): Promise<ForecastDay[]>;
 }

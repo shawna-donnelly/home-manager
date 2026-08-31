@@ -13,8 +13,10 @@ const FILE = () => join(CACHE_DIR, "snapshot.json");
 export async function readSnapshot(): Promise<Snapshot | null> {
   try {
     const parsed = JSON.parse(await readFile(FILE(), "utf8")) as Snapshot;
-    // Cache files written before sensors existed lack the field.
+    // Cache files written before sensors/locations existed lack the fields.
     parsed.sensors ??= [];
+    parsed.locations ??= [];
+    parsed.forecast ??= [];
     return parsed;
   } catch {
     return null;

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import AddEvent, { type SourceInfo } from "./AddEvent";
+import MapView from "./MapView";
 import { ChoreChart, TodoList } from "./Tasks";
 import {
   useEvents,
   useNow,
   type CalendarEvent,
+  type ForecastDay,
   type SensorReading,
 } from "./useEvents";
 
@@ -17,7 +19,7 @@ const MAX_WEEK = 8;
 /** A browsed-away display returns to today on its own — it's a wall, not a tab. */
 const RETURN_TO_TODAY_MS = 5 * 60_000;
 
-type Tab = "calendar" | "chores" | "todo";
+type Tab = "calendar" | "chores" | "todo" | "map";
 
 /**
  * Deliberately plain. This exists to prove the data path end to end — feeds
@@ -66,6 +68,8 @@ export default function App() {
 
   const days = buildDays(now, DAYS_SHOWN, weekOffset * DAYS_SHOWN);
   const sensors = snapshot?.sensors ?? [];
+  const locations = snapshot?.locations ?? [];
+  const forecast = snapshot?.forecast ?? [];
 
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [addingDay, setAddingDay] = useState<Date | null>(null);
@@ -115,6 +119,15 @@ export default function App() {
               📝 To-Do
             </button>
           )}
+          {locations.length > 0 && (
+            <button
+              type="button"
+              className={`nav__button tab${tab === "map" ? " tab--active" : ""}`}
+              onClick={() => setTab("map")}
+            >
+              🗺️ Map
+            </button>
+          )}
         </nav>
         <p className="wall__clock">
           {now.toLocaleTimeString(undefined, {
@@ -155,6 +168,9 @@ export default function App() {
 
       {tab === "chores" && tasks && <ChoreChart tasks={tasks} />}
       {tab === "todo" && tasks && <TodoList tasks={tasks} />}
+      {tab === "map" && locations.length > 0 && (
+        <MapView locations={locations} now={now} />
+      )}
 
       {tab === "calendar" && (
         <>
@@ -212,6 +228,7 @@ export default function App() {
                 <span className="day__number">{day.getDate()}</span>
               </span>
             </h2>
+            <Weather day={forecastFor(forecast, day)} />
             <ul className="day__events">
               {eventsForDay(snapshot?.events ?? [], day).map((event) => (
                 <li
@@ -322,6 +339,53 @@ function formatReading(reading: SensorReading): string {
   }
 
   return reading.value;
+}
+
+/**
+ * Home Assistant's condition slugs. Unrecognized ones render without an icon
+ * rather than hiding the temperatures.
+ */
+const CONDITION_EMOJI: Record<string, string> = {
+  sunny: "☀️",
+  "clear-night": "🌙",
+  partlycloudy: "⛅",
+  cloudy: "☁️",
+  fog: "🌫️",
+  windy: "💨",
+  "windy-variant": "💨",
+  rainy: "🌦️",
+  pouring: "🌧️",
+  lightning: "🌩️",
+  "lightning-rainy": "⛈️",
+  hail: "🌨️",
+  snowy: "❄️",
+  "snowy-rainy": "🌨️",
+  exceptional: "⚠️",
+};
+
+function forecastFor(
+  forecast: ForecastDay[],
+  day: Date,
+): ForecastDay | undefined {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const key = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+  return forecast.find((f) => f.date === key);
+}
+
+function Weather({ day }: { day: ForecastDay | undefined }) {
+  if (!day) return null;
+  const icon = CONDITION_EMOJI[day.condition];
+  return (
+    <p className="day__weather" title={day.condition}>
+      {icon && <span className="day__weather-icon">{icon}</span>}
+      <span>
+        {Math.round(day.high)}°
+        {day.low !== undefined && (
+          <span className="day__weather-low"> / {Math.round(day.low)}°</span>
+        )}
+      </span>
+    </p>
+  );
 }
 
 function formatTime(iso: string): string {

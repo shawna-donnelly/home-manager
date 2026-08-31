@@ -41,6 +41,15 @@ Devices paired to HA can be re-exposed to Apple Home via HA's "HomeKit
 Bridge" integration, so the wall display and the Home app see the same
 sensors.
 
+**The family map rides the same hub.** Apple has no public API for Find My, so
+family locations come from the Home Assistant companion app on each phone: the
+app reports location to HA, HA maintains one `person.*` entity per family
+member, and this server reads those entities alongside the sensors
+(`HA_PEOPLE` in `.env`; unset shows everyone HA knows). The 🗺️ tab appears
+automatically once locations arrive, rendered with Leaflet on OpenStreetMap
+tiles. Each person needs an HA user account with the companion app signed in
+and location sending enabled — no Apple credentials anywhere.
+
 **Last-known-good is written to disk.** Every successful poll persists to
 `CACHE_DIR`. On boot the server serves cache immediately and refreshes in the
 background, so a cold start after a power cut shows real data in under a second.

@@ -29,3 +29,49 @@ export interface SensorReading {
   /** True when the backend reports the device unavailable or unknown. */
   stale: boolean;
 }
+
+/**
+ * One day of weather forecast, normalized from the backend (Home Assistant's
+ * built-in met.no integration; any weather entity works).
+ */
+export interface ForecastDay {
+  sourceId: string;
+  /** Local calendar date, YYYY-MM-DD, computed in the server's timezone. */
+  date: string;
+  /** Backend condition slug: "sunny", "partlycloudy", "rainy", "snowy", … */
+  condition: string;
+  /** Daily high; `low` is absent when the backend doesn't provide one. */
+  high: number;
+  low?: number;
+  /** e.g. "°F". */
+  unit: string;
+}
+
+/**
+ * Where a family member is, normalized from the backend's person/device
+ * tracker. Coordinates are optional: a person exists the moment Home Assistant
+ * knows about them, but has no position until their phone reports one — the
+ * map should list them as "no location yet" rather than drop them.
+ */
+export interface PersonLocation {
+  /** Stable across polls. `${sourceId}:${entityId}`. */
+  id: string;
+  sourceId: string;
+  /** Backend-native identifier, e.g. `person.shawna`. */
+  entityId: string;
+  /** Display name, e.g. "Shawna". */
+  name: string;
+  /**
+   * The backend's zone state: "home", "not_home", or a named zone
+   * ("School", "Work"). The UI maps home/not_home to friendlier words.
+   */
+  zone: string;
+  latitude?: number;
+  longitude?: number;
+  /** Metres, when the backend reports GPS accuracy. */
+  gpsAccuracy?: number;
+  /** When the backend last saw this person's state change. UTC ISO. */
+  updatedAt: string;
+  /** True when the backend reports the tracker unavailable or unknown. */
+  stale: boolean;
+}
