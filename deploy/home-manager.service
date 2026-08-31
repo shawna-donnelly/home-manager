@@ -1,0 +1,22 @@
+# /etc/systemd/system/home-manager.service
+[Unit]
+Description=home-manager server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/home-manager/server
+EnvironmentFile=/home/pi/home-manager/server/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+# Chromium and Node both creep on a process that runs for months.
+# Cheaper to restart nightly than to debug an OOM at 7am.
+RuntimeMaxSec=86400
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

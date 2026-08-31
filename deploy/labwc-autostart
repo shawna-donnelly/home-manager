@@ -1,0 +1,24 @@
+# ~/.config/labwc/autostart
+#
+# Current Raspberry Pi OS uses labwc (Wayland). X11-era instructions using
+# xset, unclutter, or ~/.config/lxsession/ do nothing here.
+
+# Blank the display overnight rather than running the panel 24/7.
+# Known issue: on some panels the display does not wake cleanly from wlopm.
+# Test this before mounting anything on a wall.
+swayidle -w \
+  timeout 1800 'wlopm --off \*' \
+  resume 'wlopm --on \*' &
+
+# --password-store=basic suppresses the keyring unlock prompt on boot.
+# --check-for-update-interval stops the update nag from stealing focus.
+chromium \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --disable-features=Translate \
+  --password-store=basic \
+  --check-for-update-interval=31536000 \
+  --autoplay-policy=no-user-gesture-required \
+  http://localhost:8080 &

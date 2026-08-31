@@ -1,0 +1,9 @@
+node_modules/
+.yarn/
+.pnp.*
+dist/
+.env
+*.local
+.cache/
+*.log
+.DS_Store

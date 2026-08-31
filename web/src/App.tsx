@@ -1,0 +1,281 @@
+import { useEffect, useState } from "react";
+import AddEvent, { type SourceInfo } from "./AddEvent";
+import {
+  useEvents,
+  useNow,
+  type CalendarEvent,
+  type SensorReading,
+} from "./useEvents";
+
+const DAYS_SHOWN = 7;
+
+/** Paging bounds, in weeks. Must stay inside the server's fetch window. */
+const MIN_WEEK = -4;
+const MAX_WEEK = 8;
+
+/** A browsed-away display returns to today on its own — it's a wall, not a tab. */
+const RETURN_TO_TODAY_MS = 5 * 60_000;
+
+/**
+ * Deliberately plain. This exists to prove the data path end to end — feeds
+ * parse, SSE delivers, the browser renders, and it all survives a reboot.
+ * The real layout work happens against the actual panel at its actual
+ * resolution, not against a guess.
+ */
+export default function App() {
+  const { snapshot, connection } = useEvents();
+  const now = useNow();
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const page = (delta: number) =>
+    setWeekOffset((w) => Math.min(MAX_WEEK, Math.max(MIN_WEEK, w + delta)));
+
+  // Snap back to today after a stretch with no navigation.
+  useEffect(() => {
+    if (weekOffset === 0) return;
+    const timer = window.setTimeout(() => setWeekOffset(0), RETURN_TO_TODAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [weekOffset]);
+
+  // Arrow keys for a keyboard, mostly during development.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") page(-1);
+      if (e.key === "ArrowRight") page(1);
+      if (e.key === "Home") setWeekOffset(0);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const days = buildDays(now, DAYS_SHOWN, weekOffset * DAYS_SHOWN);
+  const sensors = snapshot?.sensors ?? [];
+
+  const [sources, setSources] = useState<SourceInfo[]>([]);
+  const [addingDay, setAddingDay] = useState<Date | null>(null);
+  useEffect(() => {
+    fetch("/api/sources")
+      .then((r) => (r.ok ? (r.json() as Promise<SourceInfo[]>) : []))
+      .then(setSources)
+      .catch(() => {
+        // No sources list just means no add buttons; the display still works.
+      });
+  }, []);
+  const writable = sources.filter((s) => s.writable);
+
+  return (
+    <main className="wall">
+      <header className="wall__header">
+        <h1 className="wall__date">
+          {now.toLocaleDateString(undefined, {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+          })}
+        </h1>
+        <nav className="nav" aria-label="Calendar week">
+          <button
+            type="button"
+            className="nav__button"
+            onClick={() => page(-1)}
+            disabled={weekOffset <= MIN_WEEK}
+            aria-label="Previous week"
+          >
+            ‹
+          </button>
+          {weekOffset !== 0 && (
+            <button
+              type="button"
+              className="nav__button nav__today"
+              onClick={() => setWeekOffset(0)}
+            >
+              {formatRange(days)} · Today
+            </button>
+          )}
+          <button
+            type="button"
+            className="nav__button"
+            onClick={() => page(1)}
+            disabled={weekOffset >= MAX_WEEK}
+            aria-label="Next week"
+          >
+            ›
+          </button>
+        </nav>
+        <p className="wall__clock">
+          {now.toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </p>
+      </header>
+
+      {connection !== "live" && (
+        <p className="wall__status" role="status">
+          {connection === "connecting"
+            ? "Connecting"
+            : "Reconnecting — showing saved schedule"}
+        </p>
+      )}
+
+      {snapshot && snapshot.degraded.length > 0 && (
+        <p className="wall__status" role="status">
+          {snapshot.degraded.length} source
+          {snapshot.degraded.length === 1 ? "" : "s"} out of date
+        </p>
+      )}
+
+      {sensors.length > 0 && (
+        <ul className="sensors">
+          {sensors.map((reading) => (
+            <li
+              key={reading.id}
+              className={`sensor${reading.stale ? " sensor--stale" : ""}`}
+            >
+              <span className="sensor__label">{reading.label}</span>
+              <span className="sensor__value">{formatReading(reading)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="week">
+        {days.map((day) => (
+          <section
+            key={day.toISOString()}
+            className={`day${isSameDay(day, now) ? " day--today" : ""}`}
+          >
+            <h2 className="day__label">
+              <span className="day__name">
+                {day.toLocaleDateString(undefined, { weekday: "short" })}
+              </span>
+              <span className="day__right">
+                {writable.length > 0 && (
+                  <button
+                    type="button"
+                    className="day__add"
+                    onClick={() => setAddingDay(day)}
+                    aria-label={`Add event on ${day.toDateString()}`}
+                  >
+                    +
+                  </button>
+                )}
+                <span className="day__number">{day.getDate()}</span>
+              </span>
+            </h2>
+            <ul className="day__events">
+              {eventsForDay(snapshot?.events ?? [], day).map((event) => (
+                <li
+                  key={event.id}
+                  className="event"
+                  style={{ borderInlineStartColor: event.color }}
+                >
+                  <span className="event__time">
+                    {event.allDay ? "All day" : formatTime(event.start)}
+                  </span>
+                  <span className="event__title">{event.title}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+
+      {sources.length > 0 && (
+        <ul className="legend" aria-label="Calendars">
+          {sources.map((s) => (
+            <li key={s.id} className="legend__item">
+              <span className="legend__dot" style={{ background: s.color }} />
+              {s.label}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {addingDay && writable.length > 0 && (
+        <AddEvent
+          day={addingDay}
+          sources={writable}
+          onClose={() => setAddingDay(null)}
+          onSaved={() => setAddingDay(null)}
+        />
+      )}
+    </main>
+  );
+}
+
+function buildDays(from: Date, count: number, offsetDays = 0): Date[] {
+  const start = new Date(from);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() + offsetDays);
+  return Array.from({ length: count }, (_, i) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + i);
+    return day;
+  });
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/** "Sep 6 – 12", or "Sep 28 – Oct 4" across a month boundary. */
+function formatRange(days: Date[]): string {
+  const first = days[0];
+  const last = days[days.length - 1];
+  if (!first || !last) return "";
+  const month = (d: Date) => d.toLocaleDateString(undefined, { month: "short" });
+  const sameMonth = first.getMonth() === last.getMonth();
+  return sameMonth
+    ? `${month(first)} ${first.getDate()} – ${last.getDate()}`
+    : `${month(first)} ${first.getDate()} – ${month(last)} ${last.getDate()}`;
+}
+
+function eventsForDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
+  const start = day.getTime();
+  const end = start + 86_400_000;
+  return events.filter(
+    (e) => Date.parse(e.start) < end && Date.parse(e.end) > start,
+  );
+}
+
+/**
+ * Home Assistant reports binary sensors as "on"/"off" with the meaning in the
+ * device class; everything else is a value with an optional unit. Unrecognized
+ * kinds fall through to the raw state so a new sensor never renders blank.
+ */
+const BINARY_LABELS: Record<string, [on: string, off: string]> = {
+  motion: ["Motion", "Clear"],
+  occupancy: ["Occupied", "Empty"],
+  door: ["Open", "Closed"],
+  window: ["Open", "Closed"],
+  opening: ["Open", "Closed"],
+  moisture: ["Wet", "Dry"],
+};
+
+function formatReading(reading: SensorReading): string {
+  if (reading.stale) return "—";
+
+  const binary = BINARY_LABELS[reading.kind];
+  if (binary && (reading.value === "on" || reading.value === "off")) {
+    return reading.value === "on" ? binary[0] : binary[1];
+  }
+
+  if (reading.numericValue !== undefined) {
+    const rounded = Math.round(reading.numericValue * 10) / 10;
+    return `${rounded}${reading.unit ?? ""}`;
+  }
+
+  return reading.value;
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
