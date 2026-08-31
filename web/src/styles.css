@@ -276,6 +276,19 @@ body {
   width: 100%;
 }
 
+.task--offday {
+  opacity: 0.55;
+}
+
+.task__daychip {
+  color: var(--text-dim);
+  font-size: 0.7em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
+}
+
 .task-add {
   flex-wrap: wrap;
 }

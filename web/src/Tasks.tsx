@@ -34,7 +34,7 @@ const CHORE_EMOJI: [RegExp, string][] = [
   [/dish|kitchen/i, "🍽️"],
   [/trash|garbage|recycl/i, "🗑️"],
   [/laundry|clothes|fold/i, "🧺"],
-  [/dog|cat|pet|feed|fish/i, "🐾"],
+  [/dog|cat|kitty|litter|pet|feed|fish/i, "🐾"],
   [/plant|water|garden/i, "🪴"],
   [/bath|shower|wash/i, "🛁"],
   [/hair/i, "💇"],
@@ -157,6 +157,11 @@ function KidColumn({
       (c.cadence === "days" && (c.days?.includes(weekday) ?? false)),
   );
   const weekly = chores.filter((c) => c.cadence === "weekly");
+  // Pinned chores not due today stay visible but inert — so adding one gives
+  // immediate feedback, and parents can still remove them on off days.
+  const pinnedOffDay = chores.filter(
+    (c) => c.cadence === "days" && !(c.days?.includes(weekday) ?? false),
+  );
   // Celebration keys off the dailies — a Tuesday well done deserves confetti
   // even if "clean the fish tank" isn't due until Sunday.
   const allDone =
@@ -230,6 +235,28 @@ function KidColumn({
             onToggle={() => void send(`/api/chores/${chore.id}/toggle`, "POST")}
             onRemove={() => onRemove(chore.id)}
           />
+        ))}
+        {pinnedOffDay.length > 0 && (
+          <li className="tasklist__divider">Other days</li>
+        )}
+        {pinnedOffDay.map((chore) => (
+          <li key={chore.id} className="task task--offday">
+            <span className="task__title">
+              <span className="task__emoji">{choreEmoji(chore.title)}</span>
+              {chore.title}
+            </span>
+            <span className="task__daychip">
+              {(chore.days ?? []).map((d) => DAY_SHORT[d]).join(" · ")}
+            </span>
+            <button
+              type="button"
+              className="task__remove"
+              onClick={() => onRemove(chore.id)}
+              aria-label={`Remove ${chore.title}`}
+            >
+              ×
+            </button>
+          </li>
         ))}
       </ul>
       <AddRow
@@ -408,6 +435,7 @@ function TaskRow({
 }
 
 const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_NAMES = [
   "Sunday",
   "Monday",
