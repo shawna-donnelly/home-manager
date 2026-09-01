@@ -90,6 +90,9 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
   const [picking, setPicking] = useState<Date | null>(null);
   const [reading, setReading] = useState<Meal | null>(null);
   const [shopResult, setShopResult] = useState("");
+  // The library is for occasional browsing/adding; day-to-day the tab is
+  // planning + shopping. Resets to hidden whenever the tab remounts.
+  const [showLibrary, setShowLibrary] = useState(false);
 
   const [items, setItems] = useState<ShoppingItem[] | null>(null);
   const [shoppingDown, setShoppingDown] = useState(false);
@@ -161,9 +164,20 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
   };
 
   return (
-    <div className="board board--meals">
+    <div
+      className={`board board--meals${showLibrary ? "" : " board--meals-compact"}`}
+    >
       <section className="board__col">
-        <h2 className="board__heading">🗓️ Dinner this week</h2>
+        <h2 className="board__heading board__heading--row">
+          <span>🗓️ Dinner this week</span>
+          <button
+            type="button"
+            className="nav__button meals__toggle"
+            onClick={() => setShowLibrary((v) => !v)}
+          >
+            {showLibrary ? "Hide recipes" : "📖 Recipes"}
+          </button>
+        </h2>
         <ul className="tasklist">
           {days.map((day) => {
             const meal = mealFor(day);
@@ -215,6 +229,7 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
         )}
       </section>
 
+      {showLibrary && (
       <section className="board__col">
         <h2 className="board__heading">🍽️ Meals</h2>
         <ul className="tasklist">
@@ -247,6 +262,7 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
         </ul>
         <AddMeal />
       </section>
+      )}
 
       <section className="board__col">
         <h2 className="board__heading">🛒 Shopping list</h2>

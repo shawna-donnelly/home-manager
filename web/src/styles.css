@@ -280,6 +280,24 @@ body {
   grid-template-columns: 1.15fr 1fr 1fr;
 }
 
+/* Library hidden: planning and shopping get the room. */
+.board--meals-compact {
+  grid-template-columns: 1.3fr 1fr;
+}
+
+.board__heading--row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.meals__toggle {
+  font-size: 0.7em;
+  min-height: 2.1rem;
+  font-weight: 400;
+}
+
 .mealday {
   display: flex;
   align-items: center;
