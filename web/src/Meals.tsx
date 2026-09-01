@@ -1,8 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Meal, MealsView, ShoppingItem } from "./useEvents";
 
-const normalize = (raw: string): string =>
-  raw.trim().toLowerCase().replace(/\s+/g, " ");
+const UNIT_WORDS =
+  /\b(cups?|tablespoons?|tbsps?|teaspoons?|tsps?|ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|l|liters?|cans?|jars?|packages?|pkgs?|cloves?|sticks?|slices?|pinch(?:es)?|dash(?:es)?|bunch(?:es)?|heads?|ribs?|stalks?|quarts?|pints?|gallons?|small|medium|large|extra-large|about|approximately|optional)\b/g;
+
+/**
+ * Same normalizer as the server: "2 pounds ground beef (* Note 1)" →
+ * "ground beef", so imported recipes' quantity-laden lines match.
+ */
+function normalize(raw: string): string {
+  let s = raw.toLowerCase();
+  s = s.replace(/\(.*?\)/g, " ");
+  const comma = s.indexOf(",");
+  if (comma > 0) s = s.slice(0, comma);
+  s = s.replace(/\bcut into .*$/, " ");
+  s = s.replace(/[½⅓⅔¼¾⅛⅜⅝⅞]/g, " ");
+  s = s.replace(/\d+(?:[./-]\d+)*/g, " ");
+  s = s.replace(UNIT_WORDS, " ");
+  s = s.replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+  s = s.replace(/^of\s+/, "");
+  return s;
+}
 
 const FOOD_EMOJI: [RegExp, string][] = [
   [/taco|burrito|quesadilla|fajita/i, "🌮"],
@@ -97,7 +115,11 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
     for (const day of days) {
       for (const ing of mealFor(day)?.ingredients ?? []) {
         const key = normalize(ing);
-        const entry = counts.get(key) ?? { label: ing.trim(), count: 0 };
+        if (!key) continue;
+        const entry = counts.get(key) ?? {
+          label: key.charAt(0).toUpperCase() + key.slice(1),
+          count: 0,
+        };
         entry.count += 1;
         counts.set(key, entry);
       }

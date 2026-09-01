@@ -22,9 +22,28 @@ export interface MealsView {
   plan: Record<string, string>;
 }
 
-/** "Fresh Tomatoes " and "fresh tomatoes" are the same grocery item. */
-export const normalizeIngredient = (raw: string): string =>
-  raw.trim().toLowerCase().replace(/\s+/g, " ");
+const UNIT_WORDS =
+  /\b(cups?|tablespoons?|tbsps?|teaspoons?|tsps?|ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|l|liters?|cans?|jars?|packages?|pkgs?|cloves?|sticks?|slices?|pinch(?:es)?|dash(?:es)?|bunch(?:es)?|heads?|ribs?|stalks?|quarts?|pints?|gallons?|small|medium|large|extra-large|about|approximately|optional)\b/g;
+
+/**
+ * Boil a recipe line down to the grocery item: "2 pounds ground beef
+ * (* Note 1)" → "ground beef", "1 medium onion , chopped" → "onion".
+ * Recipes write the same ingredient a dozen ways; shopping and
+ * shared-ingredient matching must see through quantities and prep notes.
+ */
+export function coreIngredient(raw: string): string {
+  let s = raw.toLowerCase();
+  s = s.replace(/\(.*?\)/g, " "); // parentheticals: "(15 oz)", "(* Note 1)"
+  const comma = s.indexOf(",");
+  if (comma > 0) s = s.slice(0, comma); // prep: ", chopped", ", to taste"
+  s = s.replace(/\bcut into .*$/, " ");
+  s = s.replace(/[½⅓⅔¼¾⅛⅜⅝⅞]/g, " ");
+  s = s.replace(/\d+(?:[./-]\d+)*/g, " "); // 2, 1.5, 1/2, 1-2
+  s = s.replace(UNIT_WORDS, " ");
+  s = s.replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+  s = s.replace(/^of\s+/, "");
+  return s;
+}
 
 /**
  * Meal library + weekly dinner plan, JSON on disk. Same discipline as
@@ -100,16 +119,20 @@ export class MealStore {
   }
 
   /**
-   * The distinct ingredients across the given dates' planned meals —
-   * shared ingredients appear once. This is the shopping-list payload.
+   * The distinct grocery items across the given dates' planned meals —
+   * shared ingredients appear once, as their core name ("ground beef"),
+   * not any one recipe's "2 pounds ground beef (* Note 1)". This is the
+   * shopping-list payload.
    */
   ingredientsFor(dates: string[]): string[] {
     const seen = new Map<string, string>();
     for (const date of dates) {
       const meal = this.#data.meals.find((m) => m.id === this.#data.plan[date]);
       for (const ing of meal?.ingredients ?? []) {
-        const key = normalizeIngredient(ing);
-        if (key && !seen.has(key)) seen.set(key, ing.trim());
+        const key = coreIngredient(ing);
+        if (key && !seen.has(key)) {
+          seen.set(key, key.charAt(0).toUpperCase() + key.slice(1));
+        }
       }
     }
     return [...seen.values()];

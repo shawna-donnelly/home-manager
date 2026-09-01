@@ -16,7 +16,7 @@ import {
   loadShoppingList,
   loadSources,
 } from "./config.js";
-import { MealStore, normalizeIngredient } from "./meals.js";
+import { MealStore, coreIngredient } from "./meals.js";
 import { createNotifier, scheduleDailyChoreReport } from "./notify.js";
 import { Poller } from "./poller.js";
 import { TaskStore } from "./tasks.js";
@@ -335,12 +335,10 @@ app.post("/api/mealplan/shop", async (request, reply) => {
 
   try {
     const existing = new Set(
-      (await shopping.getItems()).map((i) => normalizeIngredient(i.summary)),
+      (await shopping.getItems()).map((i) => coreIngredient(i.summary)),
     );
     const wanted = meals.ingredientsFor(dates);
-    const missing = wanted.filter(
-      (i) => !existing.has(normalizeIngredient(i)),
-    );
+    const missing = wanted.filter((i) => !existing.has(coreIngredient(i)));
     for (const item of missing) await shopping.add(item);
     return { ok: true, added: missing.length, skipped: wanted.length - missing.length };
   } catch (err) {
