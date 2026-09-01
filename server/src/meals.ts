@@ -22,6 +22,10 @@ export interface MealsView {
   plan: Record<string, string>;
 }
 
+/** How an ingredient is cut or prepped doesn't change what you buy. */
+const PREP_WORDS =
+  /\b(boneless|skinless|skin-on|bone-in|cooked|uncooked|raw|shredded|cubed|torn|trimmed|pounded|minced|chopped|diced|sliced|grated|crushed|melted|softened|beaten|divided|packed|drained|rinsed|undrained|undiluted|leftover|freshly)\b/g;
+
 const UNIT_WORDS =
   /\b(cups?|tablespoons?|tbsps?|teaspoons?|tsps?|ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|l|liters?|cans?|jars?|packages?|pkgs?|cloves?|sticks?|slices?|pinch(?:es)?|dash(?:es)?|bunch(?:es)?|heads?|ribs?|stalks?|quarts?|pints?|gallons?|small|medium|large|extra-large|about|approximately|optional)\b/g;
 
@@ -34,6 +38,17 @@ const UNIT_WORDS =
 export function coreIngredient(raw: string): string {
   let s = raw.toLowerCase();
   s = s.replace(/\(.*?\)/g, " "); // parentheticals: "(15 oz)", "(* Note 1)"
+
+  // Poultry meat in any form — breasts, thighs, tenders, rotisserie,
+  // "cooked and cubed" — is one grocery item. Broth/stock/soup are not.
+  if (
+    !/\b(broths?|stocks?|soups?|bouillon|base|gravy|flavor)\b/.test(s)
+  ) {
+    if (/\bchicken\b/.test(s)) return "chicken";
+    if (/\bturkey\b/.test(s)) return "turkey";
+  }
+
+  s = s.replace(PREP_WORDS, " "); // "boneless skinless", "cooked shredded"
   const comma = s.indexOf(",");
   if (comma > 0) s = s.slice(0, comma); // prep: ", chopped", ", to taste"
   s = s.replace(/\bcut into .*$/, " ");

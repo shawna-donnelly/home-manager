@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Meal, MealsView, ShoppingItem } from "./useEvents";
 
+const PREP_WORDS =
+  /\b(boneless|skinless|skin-on|bone-in|cooked|uncooked|raw|shredded|cubed|torn|trimmed|pounded|minced|chopped|diced|sliced|grated|crushed|melted|softened|beaten|divided|packed|drained|rinsed|undrained|undiluted|leftover|freshly)\b/g;
+
 const UNIT_WORDS =
   /\b(cups?|tablespoons?|tbsps?|teaspoons?|tsps?|ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|l|liters?|cans?|jars?|packages?|pkgs?|cloves?|sticks?|slices?|pinch(?:es)?|dash(?:es)?|bunch(?:es)?|heads?|ribs?|stalks?|quarts?|pints?|gallons?|small|medium|large|extra-large|about|approximately|optional)\b/g;
 
@@ -11,6 +14,11 @@ const UNIT_WORDS =
 function normalize(raw: string): string {
   let s = raw.toLowerCase();
   s = s.replace(/\(.*?\)/g, " ");
+  if (!/\b(broths?|stocks?|soups?|bouillon|base|gravy|flavor)\b/.test(s)) {
+    if (/\bchicken\b/.test(s)) return "chicken";
+    if (/\bturkey\b/.test(s)) return "turkey";
+  }
+  s = s.replace(PREP_WORDS, " ");
   const comma = s.indexOf(",");
   if (comma > 0) s = s.slice(0, comma);
   s = s.replace(/\bcut into .*$/, " ");
