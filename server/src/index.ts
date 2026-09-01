@@ -402,6 +402,45 @@ app.delete("/api/shopping/:uid", async (request, reply) => {
   }
 });
 
+/** The open (unchecked) items as a phone-friendly text list. */
+const shoppingText = async (): Promise<string> => {
+  if (!shopping) throw new Error("no shopping list configured");
+  const open = (await shopping.getItems()).filter((i) => !i.done);
+  return open.length > 0
+    ? open.map((i) => `• ${i.summary}`).join("\n")
+    : "Nothing on the list 🎉";
+};
+
+/** Plain text for Apple Shortcuts / copy-paste ("save my list to Notes"). */
+app.get("/api/shopping.txt", async (_request, reply) => {
+  if (!shopping) {
+    return reply.code(503).send("no shopping list configured");
+  }
+  try {
+    return await reply
+      .type("text/plain; charset=utf-8")
+      .send(`Shopping list — ${new Date().toLocaleDateString()}\n${await shoppingText()}\n`);
+  } catch {
+    return reply.code(502).send("home assistant unreachable");
+  }
+});
+
+app.post("/api/shopping/email", async (request, reply) => {
+  if (!shopping) {
+    return reply.code(503).send({ error: "no shopping list configured" });
+  }
+  if (!notifier.enabled) {
+    return reply.code(503).send({ error: "email not configured" });
+  }
+  try {
+    await notifier.send("🛒 Shopping list", await shoppingText());
+    return { ok: true };
+  } catch (err) {
+    request.log.error({ err }, "shopping email failed");
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+});
+
 app.post("/api/todos", async (request, reply) => {
   const title = cleanTitle((request.body as { title?: unknown } | null)?.title);
   if (!title) return reply.code(400).send({ error: "invalid todo" });

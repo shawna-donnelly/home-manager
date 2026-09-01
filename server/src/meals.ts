@@ -24,7 +24,7 @@ export interface MealsView {
 
 /** How an ingredient is cut or prepped doesn't change what you buy. */
 const PREP_WORDS =
-  /\b(boneless|skinless|skin-on|bone-in|cooked|uncooked|raw|shredded|cubed|torn|trimmed|pounded|minced|chopped|diced|sliced|grated|crushed|melted|softened|beaten|divided|packed|drained|rinsed|undrained|undiluted|leftover|freshly)\b/g;
+  /\b(boneless|skinless|skin-on|bone-in|cooked|uncooked|raw|shredded|cubed|torn|trimmed|pounded|minced|chopped|diced|sliced|grated|crushed|melted|softened|beaten|divided|packed|drained|rinsed|undrained|undiluted|leftover|freshly|finely|thinly|roughly|coarsely)\b/g;
 
 const UNIT_WORDS =
   /\b(cups?|tablespoons?|tbsps?|teaspoons?|tsps?|ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|l|liters?|cans?|jars?|packages?|pkgs?|cloves?|sticks?|slices?|pinch(?:es)?|dash(?:es)?|bunch(?:es)?|heads?|ribs?|stalks?|quarts?|pints?|gallons?|small|medium|large|extra-large|about|approximately|optional)\b/g;

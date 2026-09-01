@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Meal, MealsView, ShoppingItem } from "./useEvents";
 
 const PREP_WORDS =
-  /\b(boneless|skinless|skin-on|bone-in|cooked|uncooked|raw|shredded|cubed|torn|trimmed|pounded|minced|chopped|diced|sliced|grated|crushed|melted|softened|beaten|divided|packed|drained|rinsed|undrained|undiluted|leftover|freshly)\b/g;
+  /\b(boneless|skinless|skin-on|bone-in|cooked|uncooked|raw|shredded|cubed|torn|trimmed|pounded|minced|chopped|diced|sliced|grated|crushed|melted|softened|beaten|divided|packed|drained|rinsed|undrained|undiluted|leftover|freshly|finely|thinly|roughly|coarsely)\b/g;
 
 const UNIT_WORDS =
   /\b(cups?|tablespoons?|tbsps?|teaspoons?|tsps?|ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|l|liters?|cans?|jars?|packages?|pkgs?|cloves?|sticks?|slices?|pinch(?:es)?|dash(?:es)?|bunch(?:es)?|heads?|ribs?|stalks?|quarts?|pints?|gallons?|small|medium|large|extra-large|about|approximately|optional)\b/g;
@@ -93,6 +93,7 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
   // The library is for occasional browsing/adding; day-to-day the tab is
   // planning + shopping. Resets to hidden whenever the tab remounts.
   const [showLibrary, setShowLibrary] = useState(false);
+  const [emailResult, setEmailResult] = useState("");
 
   const [items, setItems] = useState<ShoppingItem[] | null>(null);
   const [shoppingDown, setShoppingDown] = useState(false);
@@ -265,7 +266,24 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
       )}
 
       <section className="board__col">
-        <h2 className="board__heading">🛒 Shopping list</h2>
+        <h2 className="board__heading board__heading--row">
+          <span>🛒 Shopping list</span>
+          {!shoppingDown && (items?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              className="nav__button meals__toggle"
+              onClick={async () => {
+                const res = await fetch("/api/shopping/email", {
+                  method: "POST",
+                });
+                setEmailResult(res.ok ? "sent ✓" : "email not set up");
+              }}
+            >
+              ✉️ Email list
+            </button>
+          )}
+        </h2>
+        {emailResult && <p className="meals__result">{emailResult}</p>}
         {shoppingDown ? (
           <p className="meals__result">
             Shopping list lives in Home Assistant — not reachable right now.
