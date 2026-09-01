@@ -34,9 +34,12 @@ if (!file || !server) {
   process.exit(1);
 }
 
-const INGREDIENTS_HEADING = /^\s*ingredients\b[\s:]*$/i;
+// Headings may carry emoji/symbol prefixes from recipe-clipper templates
+// ("🛒 Ingredients:", "✅ Instructions:"), so anything non-alphanumeric may
+// precede the keyword — but the line must be only the heading.
+const INGREDIENTS_HEADING = /^[^a-z0-9]*ingredients\b[\s:]*$/i;
 const NEXT_SECTION_HEADING =
-  /^\s*(instructions|directions|steps|method|preparation|to make|notes)\b[\s:]*$/i;
+  /^[^a-z0-9]*(instructions|directions|steps|method|preparation|to make|notes)\b[\s:]*$/i;
 /** Leading bullets/numbering Evernote or web clips leave on list lines. */
 const LIST_PREFIX = /^\s*(?:[-•*·◦▪]|\d+[.)])\s*/;
 
@@ -65,13 +68,16 @@ function parseRecipe(note: EnexNote): {
 } | null {
   const title = typeof note.title === "string" ? note.title.trim() : "";
   const content = typeof note.content === "string" ? note.content : "";
-  if (!title) return null;
+  // Clipper templates and unnamed notes aren't recipes.
+  if (!title || /^untitled$/i.test(title) || /template/i.test(title)) {
+    return null;
+  }
 
   const lines = enmlToText(content)
     .split("\n")
     .map((l) => l.replace(/\s+/g, " ").trim());
 
-  const ingredients: string[] = [];
+  const section: string[] = [];
   let inIngredients = false;
   for (const line of lines) {
     if (INGREDIENTS_HEADING.test(line)) {
@@ -79,10 +85,15 @@ function parseRecipe(note: EnexNote): {
       continue;
     }
     if (inIngredients && NEXT_SECTION_HEADING.test(line)) break;
-    if (inIngredients && line) {
-      ingredients.push(line.replace(LIST_PREFIX, ""));
-    }
+    if (inIngredients && line) section.push(line);
   }
+
+  // When the section is bulleted, the bullets are the ingredients and bare
+  // lines are sub-headings ("Marinade", "For the sauce") — not groceries.
+  const bulleted = section.filter((l) => LIST_PREFIX.test(l));
+  const ingredients = (bulleted.length > 0 ? bulleted : section).map((l) =>
+    l.replace(LIST_PREFIX, ""),
+  );
 
   const recipe = lines.filter(Boolean).join("\n");
   return { title, ingredients: ingredients.slice(0, 40), recipe };
