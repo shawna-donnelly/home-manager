@@ -264,10 +264,13 @@ app.post("/api/redeem", async (request, reply) => {
   return { ok: true };
 });
 
+app.get("/api/meals", async () => meals.view());
+
 app.post("/api/meals", async (request, reply) => {
   const body = request.body as {
     title?: unknown;
     ingredients?: unknown;
+    recipe?: unknown;
   } | null;
   const title = cleanTitle(body?.title);
   const raw = body?.ingredients;
@@ -275,10 +278,17 @@ app.post("/api/meals", async (request, reply) => {
     Array.isArray(raw) && raw.every((i) => typeof i === "string")
       ? (raw as string[]).map((i) => i.trim()).filter(Boolean)
       : null;
-  if (!title || !ingredients || ingredients.length > 40) {
+  const recipe = body?.recipe;
+  const recipeOk =
+    recipe === undefined ||
+    (typeof recipe === "string" && recipe.length <= 50_000);
+  if (!title || !ingredients || ingredients.length > 40 || !recipeOk) {
     return reply.code(400).send({ error: "invalid meal" });
   }
-  return { ok: true, meal: await meals.addMeal(title, ingredients) };
+  return {
+    ok: true,
+    meal: await meals.addMeal(title, ingredients, recipe as string | undefined),
+  };
 });
 
 app.delete("/api/meals/:id", async (request, reply) => {

@@ -340,6 +340,45 @@ body {
   gap: 0.5rem;
 }
 
+.recipe {
+  width: min(38rem, 92vw);
+}
+
+.recipe__body {
+  overflow-y: auto;
+  max-height: 65vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recipe__section {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.75em;
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+}
+
+.recipe__ingredients {
+  padding-inline-start: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.recipe__text {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.meal-add__recipe {
+  resize: vertical;
+  min-height: 2.75rem;
+  font-family: inherit;
+}
+
 .mealpicker {
   overflow-y: auto;
   max-height: 50vh;

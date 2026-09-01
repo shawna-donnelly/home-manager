@@ -87,6 +87,8 @@ export interface Meal {
   id: string;
   title: string;
   ingredients: string[];
+  /** Full instructions, plain text. */
+  recipe?: string;
 }
 
 export interface MealsView {

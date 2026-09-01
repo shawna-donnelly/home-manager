@@ -62,6 +62,7 @@ function weekDates(now: Date): Date[] {
 export default function Meals({ view, now }: { view: MealsView; now: Date }) {
   const days = weekDates(now);
   const [picking, setPicking] = useState<Date | null>(null);
+  const [reading, setReading] = useState<Meal | null>(null);
   const [shopResult, setShopResult] = useState("");
 
   const [items, setItems] = useState<ShoppingItem[] | null>(null);
@@ -189,13 +190,18 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
         <ul className="tasklist">
           {view.meals.map((meal) => (
             <li key={meal.id} className="task">
-              <span className="task__title">
+              <span
+                className="task__title"
+                onClick={() => setReading(meal)}
+                role="button"
+              >
                 <span className="task__emoji">{foodEmoji(meal.title)}</span>
                 {meal.title}
                 <span className="meal__count">
                   {" "}
                   · {meal.ingredients.length} ingredient
                   {meal.ingredients.length === 1 ? "" : "s"}
+                  {meal.recipe ? " · 📖" : ""}
                 </span>
               </span>
               <button
@@ -258,6 +264,10 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
           </>
         )}
       </section>
+
+      {reading && (
+        <RecipeView meal={reading} onClose={() => setReading(null)} />
+      )}
 
       {picking && (
         <MealPicker
@@ -361,9 +371,50 @@ function MealPicker({
   );
 }
 
+/** The whole recipe, big enough to cook from across the kitchen. */
+function RecipeView({ meal, onClose }: { meal: Meal; onClose: () => void }) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="add recipe" onClick={(e) => e.stopPropagation()}>
+        <h3 className="add__heading">
+          <span className="task__emoji">{foodEmoji(meal.title)}</span>
+          {meal.title}
+        </h3>
+        <div className="recipe__body">
+          {meal.ingredients.length > 0 && (
+            <>
+              <p className="recipe__section">Ingredients</p>
+              <ul className="recipe__ingredients">
+                {meal.ingredients.map((ing) => (
+                  <li key={ing}>{ing}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {meal.recipe && (
+            <>
+              <p className="recipe__section">Recipe</p>
+              <p className="recipe__text">{meal.recipe}</p>
+            </>
+          )}
+          {!meal.recipe && meal.ingredients.length === 0 && (
+            <p className="meals__result">No details for this meal yet.</p>
+          )}
+        </div>
+        <div className="add__actions">
+          <button type="button" className="nav__button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AddMeal() {
   const [title, setTitle] = useState("");
   const [ingredients, setIngredients] = useState("");
+  const [recipe, setRecipe] = useState("");
 
   const submit = async () => {
     const trimmed = title.trim();
@@ -372,9 +423,15 @@ function AddMeal() {
       .split(",")
       .map((i) => i.trim())
       .filter(Boolean);
-    if (await send("/api/meals", "POST", { title: trimmed, ingredients: list })) {
+    const body = {
+      title: trimmed,
+      ingredients: list,
+      ...(recipe.trim() ? { recipe: recipe.trim() } : {}),
+    };
+    if (await send("/api/meals", "POST", body)) {
       setTitle("");
       setIngredients("");
+      setRecipe("");
     }
   };
 
@@ -392,6 +449,13 @@ function AddMeal() {
         onChange={(e) => setIngredients(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && void submit()}
         placeholder="Ingredients, separated by commas"
+      />
+      <textarea
+        className="add__input meal-add__recipe"
+        value={recipe}
+        onChange={(e) => setRecipe(e.target.value)}
+        placeholder="Recipe / instructions (optional)"
+        rows={2}
       />
       <button
         type="button"

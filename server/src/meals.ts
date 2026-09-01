@@ -7,6 +7,8 @@ export interface Meal {
   title: string;
   /** As typed, one per entry. Comparison happens normalized, display as-is. */
   ingredients: string[];
+  /** Full instructions, plain text. Absent for quick title-only meals. */
+  recipe?: string;
 }
 
 interface MealsData {
@@ -58,11 +60,16 @@ export class MealStore {
     return () => this.#listeners.delete(listener);
   }
 
-  async addMeal(title: string, ingredients: string[]): Promise<Meal> {
+  async addMeal(
+    title: string,
+    ingredients: string[],
+    recipe?: string,
+  ): Promise<Meal> {
     const meal: Meal = {
       id: randomUUID(),
       title,
       ingredients: ingredients.map((i) => i.trim()).filter(Boolean),
+      ...(recipe?.trim() ? { recipe: recipe.trim() } : {}),
     };
     this.#data.meals.push(meal);
     await this.#persist();
