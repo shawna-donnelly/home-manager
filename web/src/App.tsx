@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AddEvent, { type SourceInfo } from "./AddEvent";
 import MapView from "./MapView";
+import Meals from "./Meals";
 import { ChoreChart, TodoList } from "./Tasks";
 import {
   useEvents,
@@ -19,7 +20,7 @@ const MAX_WEEK = 8;
 /** A browsed-away display returns to today on its own — it's a wall, not a tab. */
 const RETURN_TO_TODAY_MS = 5 * 60_000;
 
-type Tab = "calendar" | "chores" | "todo" | "map";
+type Tab = "calendar" | "chores" | "todo" | "meals" | "map";
 
 /**
  * Deliberately plain. This exists to prove the data path end to end — feeds
@@ -119,6 +120,15 @@ export default function App() {
               📝 To-Do
             </button>
           )}
+          {snapshot?.meals && (
+            <button
+              type="button"
+              className={`nav__button tab${tab === "meals" ? " tab--active" : ""}`}
+              onClick={() => setTab("meals")}
+            >
+              🍽️ Meals
+            </button>
+          )}
           {locations.length > 0 && (
             <button
               type="button"
@@ -168,6 +178,9 @@ export default function App() {
 
       {tab === "chores" && tasks && <ChoreChart tasks={tasks} />}
       {tab === "todo" && tasks && <TodoList tasks={tasks} />}
+      {tab === "meals" && snapshot?.meals && (
+        <Meals view={snapshot.meals} now={now} />
+      )}
       {tab === "map" && locations.length > 0 && (
         <MapView locations={locations} now={now} />
       )}

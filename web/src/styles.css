@@ -276,6 +276,102 @@ body {
   width: 100%;
 }
 
+.board--meals {
+  grid-template-columns: 1.15fr 1fr 1fr;
+}
+
+.mealday {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+}
+
+.mealday__name {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  min-width: 4.5rem;
+  white-space: nowrap;
+}
+
+.mealday__meal {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  flex: 1;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.mealday__empty {
+  color: var(--text-dim);
+}
+
+.meals__shared {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+}
+
+.meals__shoprow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.meals__result {
+  color: var(--text-dim);
+  font-size: 0.85em;
+}
+
+.meal__count {
+  color: var(--text-dim);
+  font-size: 0.8em;
+}
+
+.meal-add {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mealpicker {
+  overflow-y: auto;
+  max-height: 50vh;
+}
+
+.mealpicker__option {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.mealpicker__option--current {
+  border-color: #4c8dff;
+}
+
+.mealpicker__shares {
+  margin-left: auto;
+  color: #2ecc71;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
 .task--offday {
   opacity: 0.55;
 }

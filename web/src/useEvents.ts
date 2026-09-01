@@ -83,12 +83,31 @@ export interface TasksView {
   rewards: string[];
 }
 
+export interface Meal {
+  id: string;
+  title: string;
+  ingredients: string[];
+}
+
+export interface MealsView {
+  meals: Meal[];
+  /** Dinner plan: local YYYY-MM-DD → meal id. */
+  plan: Record<string, string>;
+}
+
+export interface ShoppingItem {
+  uid: string;
+  summary: string;
+  done: boolean;
+}
+
 export interface Snapshot {
   events: CalendarEvent[];
   sensors: SensorReading[];
   locations?: PersonLocation[];
   forecast?: ForecastDay[];
   tasks?: TasksView;
+  meals?: MealsView;
   fetchedAt: string;
   degraded: string[];
 }

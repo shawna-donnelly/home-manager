@@ -13,8 +13,10 @@ import {
   REWARDS,
   loadEmailConfig,
   loadSensorSources,
+  loadShoppingList,
   loadSources,
 } from "./config.js";
+import { MealStore, normalizeIngredient } from "./meals.js";
 import { createNotifier, scheduleDailyChoreReport } from "./notify.js";
 import { Poller } from "./poller.js";
 import { TaskStore } from "./tasks.js";
@@ -33,9 +35,15 @@ const tasks = new TaskStore(
   REWARDS,
 );
 const notifier = createNotifier(loadEmailConfig());
+const meals = new MealStore(DATA_DIR);
+const shopping = loadShoppingList();
 
-/** One frame for the SSE stream: calendar snapshot plus chores/todos. */
-const frame = () => ({ ...poller.snapshot, tasks: tasks.view() });
+/** One frame for the SSE stream: calendar snapshot plus chores/todos/meals. */
+const frame = () => ({
+  ...poller.snapshot,
+  tasks: tasks.view(),
+  meals: meals.view(),
+});
 
 app.get("/api/health", async () => ({
   ok: true,
@@ -153,12 +161,14 @@ app.get("/api/stream", (request, reply) => {
   send(frame());
   const unsubPoller = poller.subscribe(() => send(frame()));
   const unsubTasks = tasks.subscribe(() => send(frame()));
+  const unsubMeals = meals.subscribe(() => send(frame()));
   const keepalive = setInterval(() => reply.raw.write(": ping\n\n"), 20_000);
 
   request.raw.on("close", () => {
     clearInterval(keepalive);
     unsubPoller();
     unsubTasks();
+    unsubMeals();
   });
 });
 
@@ -254,6 +264,136 @@ app.post("/api/redeem", async (request, reply) => {
   return { ok: true };
 });
 
+app.post("/api/meals", async (request, reply) => {
+  const body = request.body as {
+    title?: unknown;
+    ingredients?: unknown;
+  } | null;
+  const title = cleanTitle(body?.title);
+  const raw = body?.ingredients;
+  const ingredients =
+    Array.isArray(raw) && raw.every((i) => typeof i === "string")
+      ? (raw as string[]).map((i) => i.trim()).filter(Boolean)
+      : null;
+  if (!title || !ingredients || ingredients.length > 40) {
+    return reply.code(400).send({ error: "invalid meal" });
+  }
+  return { ok: true, meal: await meals.addMeal(title, ingredients) };
+});
+
+app.delete("/api/meals/:id", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  if (!(await meals.removeMeal(id))) {
+    return reply.code(404).send({ error: "no such meal" });
+  }
+  return { ok: true };
+});
+
+app.post("/api/mealplan", async (request, reply) => {
+  const body = request.body as { date?: unknown; mealId?: unknown } | null;
+  const { date, mealId } = body ?? {};
+  if (
+    typeof date !== "string" ||
+    !DATE_ONLY.test(date) ||
+    (mealId !== null && typeof mealId !== "string")
+  ) {
+    return reply.code(400).send({ error: "invalid plan" });
+  }
+  if (!(await meals.planMeal(date, mealId as string | null))) {
+    return reply.code(404).send({ error: "no such meal" });
+  }
+  return { ok: true };
+});
+
+/**
+ * Push the planned meals' ingredients onto the shopping list. Shared
+ * ingredients go on once, and anything already on the list is skipped —
+ * repeat pushes are safe.
+ */
+app.post("/api/mealplan/shop", async (request, reply) => {
+  if (!shopping) {
+    return reply.code(503).send({ error: "no shopping list configured" });
+  }
+  const raw = (request.body as { dates?: unknown } | null)?.dates;
+  const dates =
+    Array.isArray(raw) &&
+    raw.length <= 31 &&
+    raw.every((d) => typeof d === "string" && DATE_ONLY.test(d))
+      ? (raw as string[])
+      : null;
+  if (!dates) return reply.code(400).send({ error: "invalid dates" });
+
+  try {
+    const existing = new Set(
+      (await shopping.getItems()).map((i) => normalizeIngredient(i.summary)),
+    );
+    const wanted = meals.ingredientsFor(dates);
+    const missing = wanted.filter(
+      (i) => !existing.has(normalizeIngredient(i)),
+    );
+    for (const item of missing) await shopping.add(item);
+    return { ok: true, added: missing.length, skipped: wanted.length - missing.length };
+  } catch (err) {
+    request.log.error({ err }, "shopping push failed");
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+});
+
+app.get("/api/shopping", async (_request, reply) => {
+  if (!shopping) {
+    return reply.code(503).send({ error: "no shopping list configured" });
+  }
+  try {
+    return { items: await shopping.getItems() };
+  } catch (err) {
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+});
+
+app.post("/api/shopping", async (request, reply) => {
+  if (!shopping) {
+    return reply.code(503).send({ error: "no shopping list configured" });
+  }
+  const title = cleanTitle((request.body as { title?: unknown } | null)?.title);
+  if (!title) return reply.code(400).send({ error: "invalid item" });
+  try {
+    await shopping.add(title);
+    return { ok: true };
+  } catch (err) {
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+});
+
+app.post("/api/shopping/:uid/toggle", async (request, reply) => {
+  if (!shopping) {
+    return reply.code(503).send({ error: "no shopping list configured" });
+  }
+  const { uid } = request.params as { uid: string };
+  const done = (request.body as { done?: unknown } | null)?.done;
+  if (typeof done !== "boolean") {
+    return reply.code(400).send({ error: "done must be boolean" });
+  }
+  try {
+    await shopping.setStatus(uid, done);
+    return { ok: true };
+  } catch (err) {
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+});
+
+app.delete("/api/shopping/:uid", async (request, reply) => {
+  if (!shopping) {
+    return reply.code(503).send({ error: "no shopping list configured" });
+  }
+  const { uid } = request.params as { uid: string };
+  try {
+    await shopping.remove(uid);
+    return { ok: true };
+  } catch (err) {
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+});
+
 app.post("/api/todos", async (request, reply) => {
   const title = cleanTitle((request.body as { title?: unknown } | null)?.title);
   if (!title) return reply.code(400).send({ error: "invalid todo" });
@@ -292,6 +432,7 @@ if (existsSync(webDist)) {
 // tasks.json — observed, not hypothetical). Listening before the first poll
 // also serves the cached view seconds sooner on a cold boot.
 await tasks.load();
+await meals.load();
 await app.listen({ port: PORT, host: "0.0.0.0" });
 await poller.start();
 scheduleDailyChoreReport(notifier, () => tasks.view(), CHORE_REPORT_TIME);

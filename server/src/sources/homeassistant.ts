@@ -176,6 +176,87 @@ function makeFetchForecast(
   };
 }
 
+export interface ShoppingItem {
+  uid: string;
+  summary: string;
+  done: boolean;
+}
+
+export interface ShoppingList {
+  getItems(): Promise<ShoppingItem[]>;
+  add(summary: string): Promise<void>;
+  setStatus(uid: string, done: boolean): Promise<void>;
+  remove(uid: string): Promise<void>;
+}
+
+/**
+ * Home Assistant's todo list as the family shopping list. HA is the owner so
+ * phones (HA companion app) and the wall edit the same list; this server is
+ * just another client. Every method throws on failure — routes surface it.
+ */
+export function createShoppingList(config: {
+  url: string;
+  token: string;
+  /** e.g. `todo.shopping_list`, created by HA's Shopping list integration. */
+  entity: string;
+}): ShoppingList {
+  const base = config.url.replace(/\/+$/, "");
+
+  // HA 400s when return_response is requested from a service that returns
+  // nothing, so only get_items asks for one.
+  const call = async (
+    service: string,
+    body: object,
+    wantsResponse = false,
+  ): Promise<unknown> => {
+    const response = await fetch(
+      `${base}/api/services/todo/${service}${wantsResponse ? "?return_response" : ""}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ entity_id: config.entity, ...body }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`shopping list ${service} returned ${response.status}`);
+    }
+    return response.json();
+  };
+
+  return {
+    async getItems(): Promise<ShoppingItem[]> {
+      const payload = (await call("get_items", {}, true)) as {
+        service_response?: Record<
+          string,
+          { items?: { uid: string; summary: string; status: string }[] }
+        >;
+      };
+      const items = payload.service_response?.[config.entity]?.items ?? [];
+      return items.map((i) => ({
+        uid: i.uid,
+        summary: i.summary,
+        done: i.status === "completed",
+      }));
+    },
+    async add(summary: string): Promise<void> {
+      await call("add_item", { item: summary });
+    },
+    async setStatus(uid: string, done: boolean): Promise<void> {
+      await call("update_item", {
+        item: uid,
+        status: done ? "completed" : "needs_action",
+      });
+    },
+    async remove(uid: string): Promise<void> {
+      await call("remove_item", { item: uid });
+    },
+  };
+}
+
 /** YYYY-MM-DD in the server's local timezone — the display's timezone too. */
 function localDateKey(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

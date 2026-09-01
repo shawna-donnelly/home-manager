@@ -3,7 +3,11 @@ import {
   createGoogleAuth,
   createGoogleCalendarSource,
 } from "./sources/googlecalendar.js";
-import { createHomeAssistantSource } from "./sources/homeassistant.js";
+import {
+  createHomeAssistantSource,
+  createShoppingList,
+  type ShoppingList,
+} from "./sources/homeassistant.js";
 import { createIcsSource } from "./sources/ics.js";
 import type { CalendarSource, SensorSource } from "./sources/types.js";
 
@@ -153,4 +157,19 @@ export function loadSensorSources(): SensorSource[] {
         : {}),
     }),
   ];
+}
+
+/**
+ * The family shopping list lives in Home Assistant so phones and the wall
+ * edit the same list. Null (no HA) hides the shopping column entirely.
+ */
+export function loadShoppingList(): ShoppingList | null {
+  const url = process.env.HA_URL;
+  const token = process.env.HA_TOKEN;
+  if (!url || !token) return null;
+  return createShoppingList({
+    url,
+    token,
+    entity: process.env.HA_SHOPPING_LIST ?? "todo.shopping_list",
+  });
 }
