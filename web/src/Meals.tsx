@@ -50,7 +50,7 @@ const FOOD_EMOJI: [RegExp, string][] = [
   [/potato/i, "🥔"],
 ];
 
-function foodEmoji(title: string): string {
+export function foodEmoji(title: string): string {
   for (const [pattern, emoji] of FOOD_EMOJI) {
     if (pattern.test(title)) return emoji;
   }

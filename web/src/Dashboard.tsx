@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { SourceInfo } from "./AddEvent";
 import { avatarUrl, type Avatars } from "./avatars";
+import { foodEmoji } from "./Meals";
 import type {
   CalendarEvent,
   Chore,
-  ShoppingItem,
+  MealsView,
   Snapshot,
 } from "./useEvents";
 import { CONDITION_EMOJI, forecastFor } from "./weather";
@@ -185,7 +186,11 @@ export default function Dashboard({
         )}
       </section>
 
-      <GroceryCard live={snapshot.shopping} todos={tasks?.todos ?? []} />
+      <TonightCard
+        meals={snapshot.meals}
+        todos={tasks?.todos ?? []}
+        now={now}
+      />
     </div>
   );
 }
@@ -286,80 +291,68 @@ function PhotoCard({ now }: { now: Date }) {
   );
 }
 
-function GroceryCard({
-  live,
+function TonightCard({
+  meals,
   todos,
+  now,
 }: {
-  live?: ShoppingItem[];
+  meals?: MealsView;
   todos: { id: string; title: string; done: boolean }[];
+  now: Date;
 }) {
-  const [items, setItems] = useState<ShoppingItem[]>([]);
-
-  useEffect(() => {
-    if (live) {
-      setItems(live);
-      return;
-    }
-    fetch("/api/shopping")
-      .then((r) =>
-        r.ok ? (r.json() as Promise<{ items: ShoppingItem[] }>) : null,
-      )
-      .then((data) => {
-        if (data) setItems(data.items);
-      })
-      .catch(() => {
-        // Card just renders its to-do half.
-      });
-  }, [live]);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const key = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const meal = meals?.meals.find((m) => m.id === meals.plan[key]);
+  const open = todos.filter((t) => !t.done);
 
   return (
     <section className="dcard dcard--list">
-      <h2 className="dcard__title">🛒 Grocery List</h2>
-      <ul className="glist">
-        {items.map((item) => (
-          <li
-            key={item.uid}
-            className={`grow${item.done ? " grow--done" : ""}`}
-          >
-            <button
-              type="button"
-              className={`krow__check${item.done ? " krow__check--on" : ""}`}
-              onClick={() =>
-                void fetch(`/api/shopping/${item.uid}/toggle`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ done: !item.done }),
-                })
-              }
-              aria-label={`Toggle ${item.summary}`}
-            >
-              {item.done ? "✓" : ""}
-            </button>
-            <span className="grow__pill grow__pill--grocery">Groceries</span>
-            <span className="grow__title">{item.summary}</span>
-          </li>
-        ))}
-        {todos
-          .filter((t) => !t.done)
-          .map((todo) => (
-            <li key={todo.id} className="grow">
-              <button
-                type="button"
-                className="krow__check"
-                onClick={() =>
-                  void fetch(`/api/todos/${todo.id}/toggle`, {
-                    method: "POST",
-                  })
-                }
-                aria-label={`Toggle ${todo.title}`}
-              >
-                {""}
-              </button>
-              <span className="grow__pill grow__pill--todo">To Do</span>
-              <span className="grow__title">{todo.title}</span>
-            </li>
-          ))}
-      </ul>
+      <h2 className="dcard__title">🍽️ Tonight</h2>
+      {meal ? (
+        <>
+          <p className="tonight__meal">
+            <span className="tonight__emoji">{foodEmoji(meal.title)}</span>
+            {meal.title}
+          </p>
+          {meal.ingredients.length > 0 && (
+            <ul className="tonight__ingredients">
+              {meal.ingredients.map((ing) => (
+                <li key={ing}>{ing}</li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <p className="dash__quiet">
+          Nothing planned — pick dinner on the Meals tab
+        </p>
+      )}
+
+      {open.length > 0 && (
+        <>
+          <p className="kidcard__section">To Do</p>
+          <ul className="glist">
+            {open.map((todo) => (
+              <li key={todo.id} className="grow">
+                <button
+                  type="button"
+                  className="krow__check"
+                  onClick={() =>
+                    void fetch(`/api/todos/${todo.id}/toggle`, {
+                      method: "POST",
+                    })
+                  }
+                  aria-label={`Toggle ${todo.title}`}
+                >
+                  {""}
+                </button>
+                <span className="grow__pill grow__pill--todo">To Do</span>
+                <span className="grow__title">{todo.title}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

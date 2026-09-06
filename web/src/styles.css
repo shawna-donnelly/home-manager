@@ -578,6 +578,34 @@ body {
   background: #fff;
 }
 
+.tonight__meal {
+  font-size: 1.25em;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tonight__emoji {
+  font-size: 1.3em;
+}
+
+.tonight__ingredients {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tonight__ingredients li {
+  background: #f0ebfa;
+  color: #4a4560;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75em;
+}
+
 .glist {
   list-style: none;
   padding: 0;
