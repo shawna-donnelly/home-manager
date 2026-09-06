@@ -36,11 +36,14 @@ export default function App() {
   const [weekOffset, setWeekOffset] = useState(0);
 
   const tasks = snapshot?.tasks;
-  const [tab, setTab] = useState<Tab>("calendar");
-  // Same kiosk rule as week paging: drift back to the calendar when idle.
+  const [tab, setTab] = useState<Tab>("dashboard");
+  // Same kiosk rule as week paging: drift back to the dashboard when idle.
   useEffect(() => {
-    if (tab === "calendar") return;
-    const timer = window.setTimeout(() => setTab("calendar"), RETURN_TO_TODAY_MS);
+    if (tab === "dashboard") return;
+    const timer = window.setTimeout(
+      () => setTab("dashboard"),
+      RETURN_TO_TODAY_MS,
+    );
     return () => window.clearTimeout(timer);
   }, [tab]);
 
