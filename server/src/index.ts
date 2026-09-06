@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 import {
+  AVATARS_DIR,
   CHORE_PIN,
   CHORE_REPORT_TIME,
   DATA_DIR,
@@ -489,6 +490,30 @@ await app.register(fastifyStatic, {
 });
 
 const PHOTO_EXT = /\.(jpe?g|png|webp|gif|avif)$/i;
+
+// Per-person avatars: `<name>.jpg` in AVATARS_DIR, matched case-insensitively.
+const avatarsRoot = resolve(AVATARS_DIR);
+await mkdir(avatarsRoot, { recursive: true });
+await app.register(fastifyStatic, {
+  root: avatarsRoot,
+  prefix: "/avatars/",
+  decorateReply: false,
+});
+
+/** Lowercased person name → filename, e.g. { killian: "Killian.jpg" }. */
+app.get("/api/avatars", async () => {
+  try {
+    const avatars: Record<string, string> = {};
+    for (const file of await readdir(avatarsRoot)) {
+      if (PHOTO_EXT.test(file)) {
+        avatars[file.replace(/\.[^.]+$/, "").toLowerCase()] = file;
+      }
+    }
+    return { avatars };
+  } catch {
+    return { avatars: {} };
+  }
+});
 
 app.get("/api/photos", async () => {
   try {

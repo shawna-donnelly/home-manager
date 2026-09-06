@@ -1,6 +1,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
+import { avatarUrl, type Avatars } from "./avatars";
 import type { PersonLocation } from "./useEvents";
 
 /** Marker colors, assigned by display order so each person keeps theirs. */
@@ -22,13 +23,17 @@ const colorFor = (index: number) => PALETTE[index % PALETTE.length] as string;
 export default function MapView({
   locations,
   now,
+  avatars,
 }: {
   locations: PersonLocation[];
   now: Date;
+  avatars: Avatars;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const markersRef = useRef(new Map<string, L.Marker>());
+  const markersRef = useRef(
+    new Map<string, { marker: L.Marker; hadAvatar: boolean }>(),
+  );
   const fitSignatureRef = useRef("");
 
   useEffect(() => {
@@ -70,25 +75,38 @@ export default function MapView({
       seen.add(person.id);
 
       const color = colorFor(locations.findIndex((p) => p.id === person.id));
+      const avatar = avatarUrl(avatars, person.name);
+      const makeIcon = () =>
+        L.divIcon({
+          className: "person-marker",
+          html:
+            (avatar
+              ? `<img class="person-marker__img" style="border-color:${color}" src="${avatar}" alt="">`
+              : `<span class="person-marker__dot" style="background:${color}"></span>`) +
+            `<span class="person-marker__name">${escapeHtml(person.name)}</span>`,
+          iconSize: [0, 0],
+          iconAnchor: avatar ? [14, 14] : [8, 8],
+        });
+
       const existing = markers.get(person.id);
       if (existing) {
-        existing.setLatLng([lat, lon]);
+        existing.marker.setLatLng([lat, lon]);
+        // Upgrade in place when the avatar list loads after marker creation.
+        if (existing.hadAvatar !== Boolean(avatar)) {
+          existing.marker.setIcon(makeIcon());
+          existing.hadAvatar = Boolean(avatar);
+        }
         return;
       }
-      const icon = L.divIcon({
-        className: "person-marker",
-        html:
-          `<span class="person-marker__dot" style="background:${color}"></span>` +
-          `<span class="person-marker__name">${escapeHtml(person.name)}</span>`,
-        iconSize: [0, 0],
-        iconAnchor: [8, 8],
+      markers.set(person.id, {
+        marker: L.marker([lat, lon], { icon: makeIcon() }).addTo(map),
+        hadAvatar: Boolean(avatar),
       });
-      markers.set(person.id, L.marker([lat, lon], { icon }).addTo(map));
     });
 
-    for (const [id, marker] of markers) {
+    for (const [id, entry] of markers) {
       if (!seen.has(id)) {
-        marker.remove();
+        entry.marker.remove();
         markers.delete(id);
       }
     }
@@ -106,7 +124,7 @@ export default function MapView({
       );
       map.fitBounds(bounds.pad(0.3), { maxZoom: 16 });
     }
-  }, [locations, located]);
+  }, [locations, located, avatars]);
 
   return (
     <div className="mapwrap">

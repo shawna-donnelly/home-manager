@@ -29,6 +29,8 @@ export const PHOTOS_DIR = process.env.PHOTOS_DIR ?? `${DATA_DIR}/photos`;
  * into PHOTOS_DIR. Unset means manual folder only.
  */
 export const GPHOTOS_ALBUM_URL = process.env.GPHOTOS_ALBUM_URL ?? "";
+/** Per-person avatar photos, one file per person named `<name>.jpg` etc. */
+export const AVATARS_DIR = process.env.AVATARS_DIR ?? `${DATA_DIR}/avatars`;
 export const PHOTO_SYNC_MS = Number(process.env.PHOTO_SYNC_MS ?? 3_600_000);
 
 const names = (raw: string | undefined) =>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AddEvent, { type SourceInfo } from "./AddEvent";
+import { useAvatars } from "./avatars";
 import Dashboard from "./Dashboard";
 import MapView from "./MapView";
 import Meals from "./Meals";
@@ -76,6 +77,7 @@ export default function App() {
   const sensors = snapshot?.sensors ?? [];
   const locations = snapshot?.locations ?? [];
   const forecast = snapshot?.forecast ?? [];
+  const avatars = useAvatars();
 
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [addingDay, setAddingDay] = useState<Date | null>(null);
@@ -189,7 +191,12 @@ export default function App() {
       )}
 
       {tab === "dashboard" && snapshot && (
-        <Dashboard snapshot={snapshot} sources={sources} now={now} />
+        <Dashboard
+          snapshot={snapshot}
+          sources={sources}
+          now={now}
+          avatars={avatars}
+        />
       )}
       {tab === "chores" && tasks && <ChoreChart tasks={tasks} />}
       {tab === "todo" && tasks && <TodoList tasks={tasks} />}
@@ -197,7 +204,7 @@ export default function App() {
         <Meals view={snapshot.meals} now={now} live={snapshot.shopping} />
       )}
       {tab === "map" && locations.length > 0 && (
-        <MapView locations={locations} now={now} />
+        <MapView locations={locations} now={now} avatars={avatars} />
       )}
 
       {tab === "calendar" && (

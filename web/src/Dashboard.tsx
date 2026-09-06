@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SourceInfo } from "./AddEvent";
+import { avatarUrl, type Avatars } from "./avatars";
 import type {
   CalendarEvent,
   Chore,
@@ -20,10 +21,12 @@ export default function Dashboard({
   snapshot,
   sources,
   now,
+  avatars,
 }: {
   snapshot: Snapshot;
   sources: SourceInfo[];
   now: Date;
+  avatars: Avatars;
 }) {
   const tasks = snapshot.tasks;
   const doneToday = new Set(tasks?.doneToday ?? []);
@@ -98,9 +101,17 @@ export default function Dashboard({
                     : "tile--blue"
               }`}
             >
-              <span className="tile__icon">
-                {["🧍", "🧍‍♀️", "🧒", "🧒", "🧒"][i] ?? "🧍"}
-              </span>
+              {avatarUrl(avatars, person.name) ? (
+                <img
+                  className="tile__avatar"
+                  src={avatarUrl(avatars, person.name) as string}
+                  alt=""
+                />
+              ) : (
+                <span className="tile__icon">
+                  {["🧍", "🧍‍♀️", "🧒", "🧒", "🧒"][i] ?? "🧍"}
+                </span>
+              )}
               <span className="tile__label">{person.name}</span>
               <span className="tile__value">{zoneLabel(person.zone, person.stale)}</span>
             </div>
@@ -138,12 +149,20 @@ export default function Dashboard({
             return (
               <div key={kid} className="kidcard">
                 <header className="kidcard__head">
-                  <span
-                    className="kidcard__avatar"
-                    style={{ background: KID_TINTS[i % KID_TINTS.length] }}
-                  >
-                    {kid.charAt(0)}
-                  </span>
+                  {avatarUrl(avatars, kid) ? (
+                    <img
+                      className="kidcard__avatar kidcard__avatar--img"
+                      src={avatarUrl(avatars, kid) as string}
+                      alt=""
+                    />
+                  ) : (
+                    <span
+                      className="kidcard__avatar"
+                      style={{ background: KID_TINTS[i % KID_TINTS.length] }}
+                    >
+                      {kid.charAt(0)}
+                    </span>
+                  )}
                   <span className="kidcard__name">{kid}</span>
                   {points && points.target > 0 && (
                     <span className="kidcard__points">
