@@ -6,6 +6,8 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": { target: "http://localhost:8080", changeOrigin: true },
+      // Dashboard photo frame images are served by the API server too.
+      "/photos": { target: "http://localhost:8080", changeOrigin: true },
     },
   },
   build: {
