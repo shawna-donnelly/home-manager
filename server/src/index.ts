@@ -8,6 +8,8 @@ import {
   CHORE_PIN,
   CHORE_REPORT_TIME,
   DATA_DIR,
+  GPHOTOS_ALBUM_URL,
+  PHOTO_SYNC_MS,
   KIDS,
   PARENTS,
   PHOTOS_DIR,
@@ -21,6 +23,7 @@ import {
 } from "./config.js";
 import type { ShoppingItem } from "./sources/homeassistant.js";
 import { MealStore, coreIngredient } from "./meals.js";
+import { startPhotoSync } from "./photosync.js";
 import { createNotifier, scheduleDailyChoreReport } from "./notify.js";
 import { Poller } from "./poller.js";
 import { TaskStore } from "./tasks.js";
@@ -519,11 +522,19 @@ const stopShoppingWatch = startShoppingWatch((items) => {
   shoppingLive = items;
   for (const listener of shoppingListeners) listener();
 });
+const stopPhotoSync = GPHOTOS_ALBUM_URL
+  ? startPhotoSync({
+      albumUrl: GPHOTOS_ALBUM_URL,
+      dir: photosRoot,
+      intervalMs: PHOTO_SYNC_MS,
+    })
+  : null;
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     poller.stop();
     stopShoppingWatch?.();
+    stopPhotoSync?.();
     void app.close().then(() => process.exit(0));
   });
 }

@@ -24,6 +24,12 @@ export const DATA_DIR = process.env.DATA_DIR ?? "./.data";
  * sturdy path is exporting an album here once in a while.
  */
 export const PHOTOS_DIR = process.env.PHOTOS_DIR ?? `${DATA_DIR}/photos`;
+/**
+ * A Google Photos shared-album link (https://photos.app.goo.gl/…) to mirror
+ * into PHOTOS_DIR. Unset means manual folder only.
+ */
+export const GPHOTOS_ALBUM_URL = process.env.GPHOTOS_ALBUM_URL ?? "";
+export const PHOTO_SYNC_MS = Number(process.env.PHOTO_SYNC_MS ?? 3_600_000);
 
 const names = (raw: string | undefined) =>
   (raw ?? "").split(",").map((n) => n.trim()).filter(Boolean);
