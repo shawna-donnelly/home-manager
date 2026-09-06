@@ -276,6 +276,346 @@ body {
   width: 100%;
 }
 
+/*
+ * Dashboard: a light pastel widget mosaic (after the commercial family-hub
+ * displays), deliberately different from the dark utility tabs.
+ */
+.dash {
+  --d-bg: #f2ede3;
+  --d-card: #ffffff;
+  --d-ink: #2a2d3a;
+  --d-dim: #8a8f9e;
+
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 1.15fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1.35fr);
+  grid-template-areas:
+    "agenda home   kids grocery"
+    "agenda photo  kids grocery";
+  gap: var(--gap);
+  flex: 1;
+  min-height: 0;
+  background: var(--d-bg);
+  border-radius: calc(var(--radius) * 2);
+  padding: var(--gap);
+  color: var(--d-ink);
+}
+
+.dcard {
+  background: var(--d-card);
+  border-radius: calc(var(--radius) * 1.75);
+  padding: calc(var(--gap) * 1.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+  overflow-y: auto;
+  box-shadow: 0 2px 10px rgb(60 50 20 / 0.06);
+}
+
+.dcard--agenda {
+  grid-area: agenda;
+  background: #fdf8e3;
+}
+
+.dcard--photo {
+  grid-area: photo;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.dcard--kids {
+  grid-area: kids;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  gap: var(--gap);
+}
+
+.dcard--list {
+  grid-area: grocery;
+}
+
+.dash > .dcard:nth-child(2) {
+  grid-area: home;
+}
+
+.dcard__title {
+  font-size: 1.15em;
+  font-weight: 700;
+}
+
+.dash__date {
+  color: var(--d-dim);
+  font-weight: 500;
+  font-size: 0.75em;
+}
+
+.dash__quiet {
+  color: var(--d-dim);
+}
+
+.agenda {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.agenda__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.agenda__pill {
+  color: #fff;
+  font-size: 0.7em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  align-self: flex-start;
+}
+
+.agenda__title {
+  font-weight: 500;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.tile {
+  border-radius: 14px;
+  padding: 0.55rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-height: 4.6rem;
+}
+
+.tile--yellow { background: #ffe9a8; }
+.tile--green  { background: #d9efd9; }
+.tile--blue   { background: #cfe3fb; }
+.tile--purple { background: #ddd8f7; }
+.tile--gray   { background: #e8e8e8; color: var(--d-dim); }
+
+.tile__icon {
+  font-size: 1.15em;
+}
+
+.tile__label {
+  font-size: 0.72em;
+  color: rgb(42 45 58 / 0.65);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile__value {
+  font-weight: 700;
+  font-size: 0.9em;
+}
+
+.photo__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: photo-fade 1.2s ease;
+}
+
+.photo__date {
+  position: absolute;
+  bottom: 0.6rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #fff;
+  font-weight: 600;
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.6);
+}
+
+.photo__empty {
+  margin: auto;
+  text-align: center;
+  color: var(--d-dim);
+  font-size: 0.85em;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.photo__emptyicon {
+  font-size: 2em;
+}
+
+@keyframes photo-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.kidcard {
+  background: var(--d-card);
+  border-radius: calc(var(--radius) * 1.75);
+  padding: calc(var(--gap) * 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 0;
+  overflow-y: auto;
+  box-shadow: 0 2px 10px rgb(60 50 20 / 0.06);
+  flex: 1;
+}
+
+.kidcard__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kidcard__avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.kidcard__name {
+  font-weight: 700;
+}
+
+.kidcard__points {
+  margin-left: auto;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: #a07800;
+  background: #fff3cd;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}
+
+.kidcard__section {
+  color: var(--d-dim);
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-top: 0.2rem;
+}
+
+.kidcard__list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.krow {
+  background: #a99fe0;
+  color: #fff;
+  border-radius: 12px;
+  padding: 0.45rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+}
+
+.krow--done {
+  opacity: 0.65;
+}
+
+.krow--done .krow__title {
+  text-decoration: line-through;
+}
+
+.krow__title {
+  flex: 1;
+  font-weight: 500;
+  font-size: 0.9em;
+}
+
+.krow__check {
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.8);
+  background: transparent;
+  color: #6c5fbc;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.krow__check--on {
+  background: #fff;
+}
+
+.glist {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.grow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid #f0ece2;
+  padding-bottom: 0.45rem;
+  min-height: 2.4rem;
+}
+
+.grow--done {
+  opacity: 0.5;
+}
+
+.grow--done .grow__title {
+  text-decoration: line-through;
+}
+
+.grow .krow__check {
+  border-color: #c9cdd8;
+  color: #4c8dff;
+}
+
+.grow .krow__check--on {
+  background: #e7efff;
+  border-color: #4c8dff;
+}
+
+.grow__pill {
+  color: #fff;
+  font-size: 0.65em;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+  flex: none;
+}
+
+.grow__pill--grocery { background: #4c8dff; }
+.grow__pill--todo    { background: #9b59b6; }
+
+.grow__title {
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .board--meals {
   grid-template-columns: 1.15fr 1fr 1fr;
 }

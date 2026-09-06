@@ -6,6 +6,8 @@ import {
 import {
   createHomeAssistantSource,
   createShoppingList,
+  watchShoppingList,
+  type ShoppingItem,
   type ShoppingList,
 } from "./sources/homeassistant.js";
 import { createIcsSource } from "./sources/ics.js";
@@ -16,6 +18,12 @@ export const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 300_000);
 export const CACHE_DIR = process.env.CACHE_DIR ?? "./.cache";
 /** Chores/todos live here — real data, not a rebuildable cache. */
 export const DATA_DIR = process.env.DATA_DIR ?? "./.data";
+/**
+ * Photos for the dashboard's rotating frame. A plain folder on purpose:
+ * Google Photos closed its library API to third-party reads (2025), so the
+ * sturdy path is exporting an album here once in a while.
+ */
+export const PHOTOS_DIR = process.env.PHOTOS_DIR ?? `${DATA_DIR}/photos`;
 
 const names = (raw: string | undefined) =>
   (raw ?? "").split(",").map((n) => n.trim()).filter(Boolean);
@@ -172,4 +180,21 @@ export function loadShoppingList(): ShoppingList | null {
     token,
     entity: process.env.HA_SHOPPING_LIST ?? "todo.shopping_list",
   });
+}
+
+/** Live shopping-list subscription; null when HA isn't configured. */
+export function startShoppingWatch(
+  onItems: (items: ShoppingItem[]) => void,
+): (() => void) | null {
+  const url = process.env.HA_URL;
+  const token = process.env.HA_TOKEN;
+  if (!url || !token) return null;
+  return watchShoppingList(
+    {
+      url,
+      token,
+      entity: process.env.HA_SHOPPING_LIST ?? "todo.shopping_list",
+    },
+    onItems,
+  );
 }

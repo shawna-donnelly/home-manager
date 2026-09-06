@@ -257,6 +257,80 @@ export function createShoppingList(config: {
   };
 }
 
+/**
+ * Live shopping-list updates over HA's websocket — the same subscription
+ * HA's own UI uses (`todo/item/subscribe`), so edits from a phone reach the
+ * wall in about a second instead of on the next poll. Reconnects with
+ * backoff forever; the wall must recover from an HA restart unattended.
+ */
+export function watchShoppingList(
+  config: { url: string; token: string; entity: string },
+  onItems: (items: ShoppingItem[]) => void,
+): () => void {
+  const wsUrl = `${config.url.replace(/\/+$/, "").replace(/^http/, "ws")}/api/websocket`;
+  let ws: WebSocket | null = null;
+  let stopped = false;
+  let retry = 0;
+  let timer: NodeJS.Timeout | undefined;
+
+  const connect = () => {
+    if (stopped) return;
+    ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      let msg: {
+        type?: string;
+        id?: number;
+        event?: {
+          items?: { uid: string; summary: string; status: string }[];
+        };
+      };
+      try {
+        msg = JSON.parse(String(event.data));
+      } catch {
+        return;
+      }
+      if (msg.type === "auth_required") {
+        ws?.send(
+          JSON.stringify({ type: "auth", access_token: config.token }),
+        );
+      } else if (msg.type === "auth_ok") {
+        retry = 0;
+        ws?.send(
+          JSON.stringify({
+            id: 1,
+            type: "todo/item/subscribe",
+            entity_id: config.entity,
+          }),
+        );
+      } else if (msg.type === "event" && msg.id === 1) {
+        const items = msg.event?.items ?? [];
+        onItems(
+          items.map((i) => ({
+            uid: i.uid,
+            summary: i.summary,
+            done: i.status === "completed",
+          })),
+        );
+      }
+    };
+
+    ws.onclose = () => {
+      if (stopped) return;
+      timer = setTimeout(connect, Math.min(5_000 * 2 ** retry++, 60_000));
+      timer.unref();
+    };
+    ws.onerror = () => ws?.close();
+  };
+
+  connect();
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+    ws?.close();
+  };
+}
+
 /** YYYY-MM-DD in the server's local timezone — the display's timezone too. */
 function localDateKey(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

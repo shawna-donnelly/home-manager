@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { mkdir, readdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import fastifyStatic from "@fastify/static";
@@ -9,13 +10,16 @@ import {
   DATA_DIR,
   KIDS,
   PARENTS,
+  PHOTOS_DIR,
   PORT,
   REWARDS,
   loadEmailConfig,
   loadSensorSources,
   loadShoppingList,
   loadSources,
+  startShoppingWatch,
 } from "./config.js";
+import type { ShoppingItem } from "./sources/homeassistant.js";
 import { MealStore, coreIngredient } from "./meals.js";
 import { createNotifier, scheduleDailyChoreReport } from "./notify.js";
 import { Poller } from "./poller.js";
@@ -38,11 +42,16 @@ const notifier = createNotifier(loadEmailConfig());
 const meals = new MealStore(DATA_DIR);
 const shopping = loadShoppingList();
 
+/** Latest shopping items pushed by HA's websocket; null until it delivers. */
+let shoppingLive: ShoppingItem[] | null = null;
+const shoppingListeners = new Set<() => void>();
+
 /** One frame for the SSE stream: calendar snapshot plus chores/todos/meals. */
 const frame = () => ({
   ...poller.snapshot,
   tasks: tasks.view(),
   meals: meals.view(),
+  ...(shoppingLive ? { shopping: shoppingLive } : {}),
 });
 
 app.get("/api/health", async () => ({
@@ -162,6 +171,8 @@ app.get("/api/stream", (request, reply) => {
   const unsubPoller = poller.subscribe(() => send(frame()));
   const unsubTasks = tasks.subscribe(() => send(frame()));
   const unsubMeals = meals.subscribe(() => send(frame()));
+  const shoppingListener = () => send(frame());
+  shoppingListeners.add(shoppingListener);
   const keepalive = setInterval(() => reply.raw.write(": ping\n\n"), 20_000);
 
   request.raw.on("close", () => {
@@ -169,6 +180,7 @@ app.get("/api/stream", (request, reply) => {
     unsubPoller();
     unsubTasks();
     unsubMeals();
+    shoppingListeners.delete(shoppingListener);
   });
 });
 
@@ -464,6 +476,26 @@ app.delete("/api/todos/:id", async (request, reply) => {
   return { ok: true };
 });
 
+// Dashboard photo frame: images dropped into PHOTOS_DIR, served as-is.
+const photosRoot = resolve(PHOTOS_DIR);
+await mkdir(photosRoot, { recursive: true });
+await app.register(fastifyStatic, {
+  root: photosRoot,
+  prefix: "/photos/",
+  decorateReply: false,
+});
+
+const PHOTO_EXT = /\.(jpe?g|png|webp|gif|avif)$/i;
+
+app.get("/api/photos", async () => {
+  try {
+    const files = await readdir(photosRoot);
+    return { photos: files.filter((f) => PHOTO_EXT.test(f)).sort() };
+  } catch {
+    return { photos: [] };
+  }
+});
+
 if (existsSync(webDist)) {
   await app.register(fastifyStatic, { root: webDist });
   // Single page — anything unmatched returns the shell.
@@ -483,10 +515,15 @@ await meals.load();
 await app.listen({ port: PORT, host: "0.0.0.0" });
 await poller.start();
 scheduleDailyChoreReport(notifier, () => tasks.view(), CHORE_REPORT_TIME);
+const stopShoppingWatch = startShoppingWatch((items) => {
+  shoppingLive = items;
+  for (const listener of shoppingListeners) listener();
+});
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     poller.stop();
+    stopShoppingWatch?.();
     void app.close().then(() => process.exit(0));
   });
 }

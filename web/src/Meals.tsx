@@ -85,7 +85,16 @@ function weekDates(now: Date): Date[] {
   });
 }
 
-export default function Meals({ view, now }: { view: MealsView; now: Date }) {
+export default function Meals({
+  view,
+  now,
+  live,
+}: {
+  view: MealsView;
+  now: Date;
+  /** Shopping items pushed over SSE; fresher than this tab's own polling. */
+  live?: ShoppingItem[];
+}) {
   const days = weekDates(now);
   const [picking, setPicking] = useState<Date | null>(null);
   const [reading, setReading] = useState<Meal | null>(null);
@@ -111,12 +120,20 @@ export default function Meals({ view, now }: { view: MealsView; now: Date }) {
     }
   }, []);
 
-  // The phone app edits the same list, so refresh while the tab is showing.
+  // The phone app edits the same list. HA pushes changes over SSE (`live`);
+  // this slow poll is only the fallback when that subscription is down.
   useEffect(() => {
     void loadShopping();
     const timer = window.setInterval(() => void loadShopping(), 60_000);
     return () => window.clearInterval(timer);
   }, [loadShopping]);
+
+  useEffect(() => {
+    if (live) {
+      setItems(live);
+      setShoppingDown(false);
+    }
+  }, [live]);
 
   const mealFor = (day: Date): Meal | undefined =>
     view.meals.find((m) => m.id === view.plan[dateKey(day)]);

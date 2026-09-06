@@ -110,6 +110,8 @@ export interface Snapshot {
   forecast?: ForecastDay[];
   tasks?: TasksView;
   meals?: MealsView;
+  /** Live shopping items, pushed when Home Assistant reports a change. */
+  shopping?: ShoppingItem[];
   fetchedAt: string;
   degraded: string[];
 }

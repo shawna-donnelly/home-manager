@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import AddEvent, { type SourceInfo } from "./AddEvent";
+import Dashboard from "./Dashboard";
 import MapView from "./MapView";
 import Meals from "./Meals";
 import { ChoreChart, TodoList } from "./Tasks";
+import { CONDITION_EMOJI, forecastFor } from "./weather";
 import {
   useEvents,
   useNow,
@@ -20,7 +22,7 @@ const MAX_WEEK = 8;
 /** A browsed-away display returns to today on its own — it's a wall, not a tab. */
 const RETURN_TO_TODAY_MS = 5 * 60_000;
 
-type Tab = "calendar" | "chores" | "todo" | "meals" | "map";
+type Tab = "dashboard" | "calendar" | "chores" | "todo" | "meals" | "map";
 
 /**
  * Deliberately plain. This exists to prove the data path end to end — feeds
@@ -95,6 +97,13 @@ export default function App() {
           })}
         </h1>
         <nav className="nav" aria-label="Sections">
+          <button
+            type="button"
+            className={`nav__button tab${tab === "dashboard" ? " tab--active" : ""}`}
+            onClick={() => setTab("dashboard")}
+          >
+            🏠 Home
+          </button>
           <button
             type="button"
             className={`nav__button tab${tab === "calendar" ? " tab--active" : ""}`}
@@ -176,10 +185,13 @@ export default function App() {
         </ul>
       )}
 
+      {tab === "dashboard" && snapshot && (
+        <Dashboard snapshot={snapshot} sources={sources} now={now} />
+      )}
       {tab === "chores" && tasks && <ChoreChart tasks={tasks} />}
       {tab === "todo" && tasks && <TodoList tasks={tasks} />}
       {tab === "meals" && snapshot?.meals && (
-        <Meals view={snapshot.meals} now={now} />
+        <Meals view={snapshot.meals} now={now} live={snapshot.shopping} />
       )}
       {tab === "map" && locations.length > 0 && (
         <MapView locations={locations} now={now} />
@@ -352,37 +364,6 @@ function formatReading(reading: SensorReading): string {
   }
 
   return reading.value;
-}
-
-/**
- * Home Assistant's condition slugs. Unrecognized ones render without an icon
- * rather than hiding the temperatures.
- */
-const CONDITION_EMOJI: Record<string, string> = {
-  sunny: "☀️",
-  "clear-night": "🌙",
-  partlycloudy: "⛅",
-  cloudy: "☁️",
-  fog: "🌫️",
-  windy: "💨",
-  "windy-variant": "💨",
-  rainy: "🌦️",
-  pouring: "🌧️",
-  lightning: "🌩️",
-  "lightning-rainy": "⛈️",
-  hail: "🌨️",
-  snowy: "❄️",
-  "snowy-rainy": "🌨️",
-  exceptional: "⚠️",
-};
-
-function forecastFor(
-  forecast: ForecastDay[],
-  day: Date,
-): ForecastDay | undefined {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const key = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
-  return forecast.find((f) => f.date === key);
 }
 
 function Weather({ day }: { day: ForecastDay | undefined }) {
