@@ -484,9 +484,23 @@ body {
   flex-direction: column;
   gap: 0.45rem;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   box-shadow: 0 2px 10px rgb(60 50 20 / 0.06);
   flex: 1;
+  /* Anchor the confetti overlay to the card. */
+  position: relative;
+}
+
+.kidcard__list {
+  overflow-y: auto;
+}
+
+/* A finished kid's confetti rains over the whole wall, not the small card. */
+.celebrate-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
 }
 
 .kidcard__head {

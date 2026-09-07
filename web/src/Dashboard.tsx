@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SourceInfo } from "./AddEvent";
 import { avatarUrl, type Avatars } from "./avatars";
 import { foodEmoji } from "./Meals";
+import { Confetti, choreEmoji } from "./Tasks";
 import type {
   CalendarEvent,
   Chore,
@@ -135,52 +136,18 @@ export default function Dashboard({
 
       <section className="dcard dcard--kids">
         {tasks && tasks.kids.length > 0 ? (
-          tasks.kids.map((kid, i) => {
-            const due = (tasks.chores ?? []).filter(
-              (c) =>
-                c.kid === kid &&
-                (c.cadence === "daily" ||
-                  (c.cadence === "days" &&
-                    (c.days?.includes(weekday) ?? false))),
-            );
-            const weekly = (tasks.chores ?? []).filter(
-              (c) => c.kid === kid && c.cadence === "weekly",
-            );
-            const points = tasks.points.find((p) => p.kid === kid);
-            return (
-              <div key={kid} className="kidcard">
-                <header className="kidcard__head">
-                  {avatarUrl(avatars, kid) ? (
-                    <img
-                      className="kidcard__avatar kidcard__avatar--img"
-                      src={avatarUrl(avatars, kid) as string}
-                      alt=""
-                    />
-                  ) : (
-                    <span
-                      className="kidcard__avatar"
-                      style={{ background: KID_TINTS[i % KID_TINTS.length] }}
-                    >
-                      {kid.charAt(0)}
-                    </span>
-                  )}
-                  <span className="kidcard__name">{kid}</span>
-                  {points && points.target > 0 && (
-                    <span className="kidcard__points">
-                      ⭐ {points.earned}/{points.target}
-                    </span>
-                  )}
-                </header>
-                <ChoreRows chores={due} done={doneToday} />
-                {weekly.length > 0 && (
-                  <>
-                    <p className="kidcard__section">This week</p>
-                    <ChoreRows chores={weekly} done={doneToday} />
-                  </>
-                )}
-              </div>
-            );
-          })
+          tasks.kids.map((kid, i) => (
+            <KidCard
+              key={kid}
+              kid={kid}
+              tint={KID_TINTS[i % KID_TINTS.length] as string}
+              avatar={avatarUrl(avatars, kid)}
+              chores={tasks.chores ?? []}
+              done={doneToday}
+              points={tasks.points.find((p) => p.kid === kid)}
+              weekday={weekday}
+            />
+          ))
         ) : (
           <p className="dash__quiet">No chore chart configured</p>
         )}
@@ -202,6 +169,81 @@ function zoneLabel(zone: string, stale: boolean): string {
   return zone;
 }
 
+/** One kid's card; fires confetti the moment every chore on it is done. */
+function KidCard({
+  kid,
+  tint,
+  avatar,
+  chores,
+  done,
+  points,
+  weekday,
+}: {
+  kid: string;
+  tint: string;
+  avatar: string | null;
+  chores: Chore[];
+  done: Set<string>;
+  points?: { earned: number; target: number };
+  weekday: number;
+}) {
+  const due = chores.filter(
+    (c) =>
+      c.kid === kid &&
+      (c.cadence === "daily" ||
+        (c.cadence === "days" && (c.days?.includes(weekday) ?? false))),
+  );
+  const weekly = chores.filter((c) => c.kid === kid && c.cadence === "weekly");
+  const mine = [...due, ...weekly];
+
+  // Celebrate the transition into "all done", not the resting state — so it
+  // fires when the last box is checked, not on every re-render.
+  const allDone = mine.length > 0 && mine.every((c) => done.has(c.id));
+  const [celebrate, setCelebrate] = useState(false);
+  const wasDone = useRef(allDone);
+  useEffect(() => {
+    if (allDone && !wasDone.current) {
+      setCelebrate(true);
+      const t = window.setTimeout(() => setCelebrate(false), 4000);
+      wasDone.current = allDone;
+      return () => window.clearTimeout(t);
+    }
+    wasDone.current = allDone;
+  }, [allDone]);
+
+  return (
+    <div className="kidcard">
+      {celebrate && (
+        <div className="celebrate-overlay">
+          <Confetti />
+        </div>
+      )}
+      <header className="kidcard__head">
+        {avatar ? (
+          <img className="kidcard__avatar kidcard__avatar--img" src={avatar} alt="" />
+        ) : (
+          <span className="kidcard__avatar" style={{ background: tint }}>
+            {kid.charAt(0)}
+          </span>
+        )}
+        <span className="kidcard__name">{kid}</span>
+        {points && points.target > 0 && (
+          <span className="kidcard__points">
+            ⭐ {points.earned}/{points.target}
+          </span>
+        )}
+      </header>
+      <ChoreRows chores={due} done={done} />
+      {weekly.length > 0 && (
+        <>
+          <p className="kidcard__section">This week</p>
+          <ChoreRows chores={weekly} done={done} />
+        </>
+      )}
+    </div>
+  );
+}
+
 function ChoreRows({ chores, done }: { chores: Chore[]; done: Set<string> }) {
   return (
     <ul className="kidcard__list">
@@ -212,7 +254,10 @@ function ChoreRows({ chores, done }: { chores: Chore[]; done: Set<string> }) {
             key={chore.id}
             className={`krow${isDone ? " krow--done" : ""}`}
           >
-            <span className="krow__title">{chore.title}</span>
+            <span className="krow__title">
+              <span className="task__emoji">{choreEmoji(chore.title)}</span>
+              {chore.title}
+            </span>
             <button
               type="button"
               className={`krow__check${isDone ? " krow__check--on" : ""}`}

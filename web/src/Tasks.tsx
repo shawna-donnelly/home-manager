@@ -43,7 +43,7 @@ const CHORE_EMOJI: [RegExp, string][] = [
   [/shoe|toy|tidy/i, "🧸"],
 ];
 
-function choreEmoji(title: string): string {
+export function choreEmoji(title: string): string {
   return CHORE_EMOJI.find(([re]) => re.test(title))?.[1] ?? "⭐";
 }
 
@@ -279,7 +279,7 @@ const CONFETTI_COLORS = [
   "#f1c40f",
 ];
 
-function Confetti() {
+export function Confetti() {
   const bits = useMemo(
     () =>
       Array.from({ length: 40 }, (_, i) => ({
