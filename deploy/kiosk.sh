@@ -6,14 +6,15 @@
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 URL="${KIOSK_URL:-http://localhost:8080}"
+# The Raspberry Pi OS /usr/bin/chromium wrapper injects
+# --js-flags=--no-decommit-pooled-pages, a V8 flag that newer Chromium rejects
+# (it quits on launch). The empty --js-flags below comes last and wins,
+# neutralizing the wrapper's bad one.
 while true; do
   chromium \
     --kiosk \
     --ozone-platform=wayland \
     --enable-features=UseOzonePlatform \
-    `# Raspberry Pi OS's /usr/bin/chromium wrapper injects` \
-    `# --js-flags=--no-decommit-pooled-pages, a V8 flag newer Chromium` \
-    `# rejects (it quits on it). An empty --js-flags last wins, neutralizing it.` \
     --js-flags= \
     --noerrdialogs \
     --disable-infobars \
