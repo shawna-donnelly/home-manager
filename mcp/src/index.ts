@@ -187,15 +187,18 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.url?.split("?")[0] !== "/mcp") {
+  // Auth two ways so it works with every client:
+  //   • header  — Authorization: Bearer <token>   (Claude Code / Desktop)
+  //   • in-path — POST /mcp/<token>                (claude.ai connectors, which
+  //     take only a URL). Over HTTPS the long random path IS the secret.
+  const path = (req.url ?? "").split("?")[0];
+  const headerOk = (req.headers.authorization ?? "") === `Bearer ${TOKEN}`;
+  const pathOk = path === `/mcp/${TOKEN}`;
+  if (path !== "/mcp" && !pathOk) {
     res.writeHead(404).end();
     return;
   }
-
-  // Constant-ish bearer check. The tunnel provides transport security; this
-  // stops anyone who finds the URL from writing to the meal library.
-  const auth = req.headers.authorization ?? "";
-  if (auth !== `Bearer ${TOKEN}`) {
+  if (!headerOk && !pathOk) {
     res.writeHead(401, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "unauthorized" }));
     return;
