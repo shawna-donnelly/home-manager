@@ -15,6 +15,7 @@ while true; do
     --kiosk \
     --ozone-platform=wayland \
     --enable-features=UseOzonePlatform \
+    --user-data-dir="$HOME/.kiosk-chrome" \
     --js-flags= \
     --noerrdialogs \
     --disable-infobars \
