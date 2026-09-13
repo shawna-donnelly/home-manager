@@ -1,0 +1,19 @@
+# /etc/systemd/system/home-manager-mcp.service
+[Unit]
+Description=home-manager recipe MCP server
+After=network-online.target home-manager.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/home-manager/mcp
+EnvironmentFile=/home/pi/home-manager/mcp/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
