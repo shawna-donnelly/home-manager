@@ -11,6 +11,10 @@ while true; do
     --kiosk \
     --ozone-platform=wayland \
     --enable-features=UseOzonePlatform \
+    `# Raspberry Pi OS's /usr/bin/chromium wrapper injects` \
+    `# --js-flags=--no-decommit-pooled-pages, a V8 flag newer Chromium` \
+    `# rejects (it quits on it). An empty --js-flags last wins, neutralizing it.` \
+    --js-flags= \
     --noerrdialogs \
     --disable-infobars \
     --disable-session-crashed-bubble \
