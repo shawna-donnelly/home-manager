@@ -135,22 +135,26 @@ export default function Meals({
     }
   }, [live]);
 
-  const mealFor = (day: Date): Meal | undefined =>
-    view.meals.find((m) => m.id === view.plan[dateKey(day)]);
+  const mealsFor = (day: Date): Meal[] =>
+    (view.plan[dateKey(day)] ?? [])
+      .map((id) => view.meals.find((m) => m.id === id))
+      .filter((m): m is Meal => Boolean(m));
 
   // Ingredients used by 2+ planned meals this week — the buy-once savings.
   const shared = (() => {
     const counts = new Map<string, { label: string; count: number }>();
     for (const day of days) {
-      for (const ing of mealFor(day)?.ingredients ?? []) {
-        const key = normalize(ing);
-        if (!key) continue;
-        const entry = counts.get(key) ?? {
-          label: key.charAt(0).toUpperCase() + key.slice(1),
-          count: 0,
-        };
-        entry.count += 1;
-        counts.set(key, entry);
+      for (const meal of mealsFor(day)) {
+        for (const ing of meal.ingredients) {
+          const key = normalize(ing);
+          if (!key) continue;
+          const entry = counts.get(key) ?? {
+            label: key.charAt(0).toUpperCase() + key.slice(1),
+            count: 0,
+          };
+          entry.count += 1;
+          counts.set(key, entry);
+        }
       }
     }
     return [...counts.values()]
@@ -158,7 +162,9 @@ export default function Meals({
       .sort((a, b) => b.count - a.count);
   })();
 
-  const plannedDates = days.filter(mealFor).map(dateKey);
+  const plannedDates = days
+    .filter((d) => mealsFor(d).length > 0)
+    .map(dateKey);
 
   const pushIngredients = async () => {
     setShopResult("…");
@@ -198,7 +204,7 @@ export default function Meals({
         </h2>
         <ul className="tasklist">
           {days.map((day) => {
-            const meal = mealFor(day);
+            const dayMeals = mealsFor(day);
             return (
               <li key={day.toISOString()} className="mealday">
                 <span className="mealday__name">
@@ -212,13 +218,17 @@ export default function Meals({
                   className="mealday__meal"
                   onClick={() => setPicking(day)}
                 >
-                  {meal ? (
-                    <>
-                      <span className="task__emoji">
-                        {foodEmoji(meal.title)}
-                      </span>
-                      {meal.title}
-                    </>
+                  {dayMeals.length > 0 ? (
+                    <span className="mealday__list">
+                      {dayMeals.map((meal) => (
+                        <span key={meal.id} className="mealday__one">
+                          <span className="task__emoji">
+                            {foodEmoji(meal.title)}
+                          </span>
+                          {meal.title}
+                        </span>
+                      ))}
+                    </span>
                   ) : (
                     <span className="mealday__empty">+ pick a meal</span>
                   )}
@@ -356,8 +366,7 @@ export default function Meals({
           view={view}
           otherPlanned={days
             .filter((d) => dateKey(d) !== dateKey(picking))
-            .map(mealFor)
-            .filter((m): m is Meal => Boolean(m))}
+            .flatMap(mealsFor)}
           onClose={() => setPicking(null)}
         />
       )}
@@ -366,8 +375,10 @@ export default function Meals({
 }
 
 /**
- * Meal chooser for one day, sorted so meals sharing ingredients with the rest
- * of the week float to the top — picking those is what saves money.
+ * Meal chooser for one day. Pick as many meals as the dinner needs (ribs AND
+ * potatoes); a search box filters the library, and meals that share
+ * ingredients with the rest of the week float to the top — picking those is
+ * what saves money. Selections persist as you toggle; close when done.
  */
 function MealPicker({
   day,
@@ -380,6 +391,16 @@ function MealPicker({
   otherPlanned: Meal[];
   onClose: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  // Local mirror of the day's selection so toggles feel instant; seeded from
+  // the server view and kept in sync as SSE frames update `view`.
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(view.plan[dateKey(day)] ?? []),
+  );
+  useEffect(() => {
+    setSelected(new Set(view.plan[dateKey(day)] ?? []));
+  }, [view, day]);
+
   const weekIngredients = new Set(
     otherPlanned.flatMap((m) => m.ingredients.map(normalize)),
   );
@@ -388,12 +409,47 @@ function MealPicker({
       meal.ingredients.map(normalize).filter((i) => weekIngredients.has(i)),
     ).size;
 
-  const sorted = [...view.meals].sort((a, b) => overlap(b) - overlap(a));
-  const planned = view.plan[dateKey(day)];
+  const q = query.trim().toLowerCase();
+  const titleHit = (m: Meal) => m.title.toLowerCase().includes(q);
+  const shown = [...view.meals]
+    .filter(
+      (m) =>
+        !q ||
+        titleHit(m) ||
+        m.ingredients.some((i) => i.toLowerCase().includes(q)),
+    )
+    .sort((a, b) => {
+      // Keep what's already chosen for this day pinned at the top.
+      const as = selected.has(a.id) ? 1 : 0;
+      const bs = selected.has(b.id) ? 1 : 0;
+      if (as !== bs) return bs - as;
+      // When searching, a name match beats an ingredient-only match.
+      if (q) {
+        const at = titleHit(a) ? 1 : 0;
+        const bt = titleHit(b) ? 1 : 0;
+        if (at !== bt) return bt - at;
+      }
+      return overlap(b) - overlap(a);
+    });
 
-  const choose = async (mealId: string | null) => {
-    await send("/api/mealplan", "POST", { date: dateKey(day), mealId });
-    onClose();
+  const toggle = async (meal: Meal) => {
+    const on = selected.has(meal.id);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.delete(meal.id);
+      else next.add(meal.id);
+      return next;
+    });
+    await send("/api/mealplan", "POST", {
+      date: dateKey(day),
+      mealId: meal.id,
+      action: on ? "remove" : "add",
+    });
+  };
+
+  const clearDay = async () => {
+    setSelected(new Set());
+    await send("/api/mealplan", "POST", { date: dateKey(day), action: "clear" });
   };
 
   return (
@@ -405,22 +461,37 @@ function MealPicker({
             month: "short",
             day: "numeric",
           })}
+          {selected.size > 0 && (
+            <span className="mealpicker__count"> · {selected.size} chosen</span>
+          )}
         </h3>
-        {sorted.length === 0 && (
+        <input
+          className="add__input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search recipes…"
+          autoFocus
+        />
+        {view.meals.length === 0 && (
           <p className="meals__result">Add some meals first →</p>
         )}
+        {view.meals.length > 0 && shown.length === 0 && (
+          <p className="meals__result">No recipes match “{query}”.</p>
+        )}
         <ul className="tasklist mealpicker">
-          {sorted.map((meal) => {
+          {shown.map((meal) => {
+            const on = selected.has(meal.id);
             const shares = overlap(meal);
             return (
               <li key={meal.id}>
                 <button
                   type="button"
                   className={`mealpicker__option${
-                    meal.id === planned ? " mealpicker__option--current" : ""
+                    on ? " mealpicker__option--current" : ""
                   }`}
-                  onClick={() => void choose(meal.id)}
+                  onClick={() => void toggle(meal)}
                 >
+                  <span className="mealpicker__check">{on ? "✓" : ""}</span>
                   <span className="task__emoji">{foodEmoji(meal.title)}</span>
                   {meal.title}
                   {shares > 0 && (
@@ -434,17 +505,17 @@ function MealPicker({
           })}
         </ul>
         <div className="add__actions">
-          {planned && (
+          {selected.size > 0 && (
             <button
               type="button"
               className="nav__button"
-              onClick={() => void choose(null)}
+              onClick={() => void clearDay()}
             >
               Clear day
             </button>
           )}
-          <button type="button" className="nav__button" onClick={onClose}>
-            Cancel
+          <button type="button" className="nav__button add__save" onClick={onClose}>
+            Done
           </button>
         </div>
       </div>

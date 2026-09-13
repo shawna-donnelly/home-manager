@@ -93,8 +93,8 @@ export interface Meal {
 
 export interface MealsView {
   meals: Meal[];
-  /** Dinner plan: local YYYY-MM-DD → meal id. */
-  plan: Record<string, string>;
+  /** Dinner plan: local YYYY-MM-DD → meal ids (a day can have several). */
+  plan: Record<string, string[]>;
 }
 
 export interface ShoppingItem {

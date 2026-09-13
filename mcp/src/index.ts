@@ -170,7 +170,7 @@ function buildServer(): McpServer {
           isError: true,
         };
       }
-      await apiPost("/api/mealplan", { date, mealId: meal.id });
+      await apiPost("/api/mealplan", { date, mealId: meal.id, action: "add" });
       return {
         content: [{ type: "text", text: `Planned "${meal.title}" for ${date}.` }],
       };

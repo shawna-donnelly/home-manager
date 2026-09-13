@@ -730,6 +730,16 @@ body {
   color: var(--text-dim);
 }
 
+.mealday__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.mealday__one {
+  display: block;
+}
+
 .meals__shared {
   color: var(--text-dim);
   font-size: 0.85em;
@@ -828,6 +838,25 @@ body {
   color: #2ecc71;
   font-size: 0.8em;
   white-space: nowrap;
+}
+
+.mealpicker__check {
+  width: 1.2em;
+  flex: none;
+  color: #2ecc71;
+  font-weight: 700;
+}
+
+.mealpicker__count {
+  color: var(--text-dim);
+  font-size: 0.8em;
+  font-weight: 400;
+}
+
+.tonight__dish + .tonight__dish {
+  border-top: 1px solid #f0ece2;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .task--offday {

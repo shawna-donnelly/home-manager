@@ -13,13 +13,13 @@ export interface Meal {
 
 interface MealsData {
   meals: Meal[];
-  /** Dinner plan: local YYYY-MM-DD → meal id. */
-  plan: Record<string, string>;
+  /** Dinner plan: local YYYY-MM-DD → meal ids (a day can have several). */
+  plan: Record<string, string[]>;
 }
 
 export interface MealsView {
   meals: Meal[];
-  plan: Record<string, string>;
+  plan: Record<string, string[]>;
 }
 
 /** How an ingredient is cut or prepped doesn't change what you buy. */
@@ -80,6 +80,10 @@ export class MealStore {
       this.#data = JSON.parse(await readFile(this.#file, "utf8")) as MealsData;
       this.#data.meals ??= [];
       this.#data.plan ??= {};
+      // Plans written before multi-meal days stored one id per date; wrap them.
+      for (const [date, v] of Object.entries(this.#data.plan)) {
+        if (typeof v === "string") this.#data.plan[date] = [v];
+      }
     } catch {
       // First run — start empty.
     }
@@ -114,23 +118,38 @@ export class MealStore {
     const before = this.#data.meals.length;
     this.#data.meals = this.#data.meals.filter((m) => m.id !== id);
     if (this.#data.meals.length === before) return false;
-    for (const [date, mealId] of Object.entries(this.#data.plan)) {
-      if (mealId === id) delete this.#data.plan[date];
+    for (const [date, ids] of Object.entries(this.#data.plan)) {
+      const kept = ids.filter((mid) => mid !== id);
+      if (kept.length > 0) this.#data.plan[date] = kept;
+      else delete this.#data.plan[date];
     }
     await this.#persist();
     return true;
   }
 
-  /** Assign a meal to a date, or clear the date with null. */
-  async planMeal(date: string, mealId: string | null): Promise<boolean> {
-    if (mealId !== null && !this.#data.meals.some((m) => m.id === mealId)) {
-      return false;
-    }
-    if (mealId === null) delete this.#data.plan[date];
-    else this.#data.plan[date] = mealId;
+  /** Add a meal to a day (a day can hold several). No-op if already there. */
+  async planAdd(date: string, mealId: string): Promise<boolean> {
+    if (!this.#data.meals.some((m) => m.id === mealId)) return false;
+    const day = this.#data.plan[date] ?? [];
+    if (!day.includes(mealId)) day.push(mealId);
+    this.#data.plan[date] = day;
     this.#prunePlan();
     await this.#persist();
     return true;
+  }
+
+  /** Remove one meal from a day; drops the day entirely when it empties. */
+  async planRemove(date: string, mealId: string): Promise<void> {
+    const day = (this.#data.plan[date] ?? []).filter((id) => id !== mealId);
+    if (day.length > 0) this.#data.plan[date] = day;
+    else delete this.#data.plan[date];
+    await this.#persist();
+  }
+
+  /** Clear every meal from a day. */
+  async planClear(date: string): Promise<void> {
+    delete this.#data.plan[date];
+    await this.#persist();
   }
 
   /**
@@ -142,11 +161,13 @@ export class MealStore {
   ingredientsFor(dates: string[]): string[] {
     const seen = new Map<string, string>();
     for (const date of dates) {
-      const meal = this.#data.meals.find((m) => m.id === this.#data.plan[date]);
-      for (const ing of meal?.ingredients ?? []) {
-        const key = coreIngredient(ing);
-        if (key && !seen.has(key)) {
-          seen.set(key, key.charAt(0).toUpperCase() + key.slice(1));
+      for (const mealId of this.#data.plan[date] ?? []) {
+        const meal = this.#data.meals.find((m) => m.id === mealId);
+        for (const ing of meal?.ingredients ?? []) {
+          const key = coreIngredient(ing);
+          if (key && !seen.has(key)) {
+            seen.set(key, key.charAt(0).toUpperCase() + key.slice(1));
+          }
         }
       }
     }

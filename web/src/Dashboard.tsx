@@ -347,26 +347,30 @@ function TonightCard({
 }) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const key = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const meal = meals?.meals.find((m) => m.id === meals.plan[key]);
+  const tonight = (meals?.plan[key] ?? [])
+    .map((id) => meals?.meals.find((m) => m.id === id))
+    .filter((m): m is NonNullable<typeof m> => Boolean(m));
   const open = todos.filter((t) => !t.done);
 
   return (
     <section className="dcard dcard--list">
       <h2 className="dcard__title">🍽️ Tonight</h2>
-      {meal ? (
-        <>
-          <p className="tonight__meal">
-            <span className="tonight__emoji">{foodEmoji(meal.title)}</span>
-            {meal.title}
-          </p>
-          {meal.ingredients.length > 0 && (
-            <ul className="tonight__ingredients">
-              {meal.ingredients.map((ing) => (
-                <li key={ing}>{ing}</li>
-              ))}
-            </ul>
-          )}
-        </>
+      {tonight.length > 0 ? (
+        tonight.map((meal) => (
+          <div key={meal.id} className="tonight__dish">
+            <p className="tonight__meal">
+              <span className="tonight__emoji">{foodEmoji(meal.title)}</span>
+              {meal.title}
+            </p>
+            {meal.ingredients.length > 0 && (
+              <ul className="tonight__ingredients">
+                {meal.ingredients.map((ing) => (
+                  <li key={ing}>{ing}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))
       ) : (
         <p className="dash__quiet">
           Nothing planned — pick dinner on the Meals tab

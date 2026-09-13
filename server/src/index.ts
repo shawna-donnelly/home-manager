@@ -316,16 +316,31 @@ app.delete("/api/meals/:id", async (request, reply) => {
 });
 
 app.post("/api/mealplan", async (request, reply) => {
-  const body = request.body as { date?: unknown; mealId?: unknown } | null;
+  const body = request.body as {
+    date?: unknown;
+    mealId?: unknown;
+    action?: unknown;
+  } | null;
   const { date, mealId } = body ?? {};
-  if (
-    typeof date !== "string" ||
-    !DATE_ONLY.test(date) ||
-    (mealId !== null && typeof mealId !== "string")
-  ) {
+  const action = body?.action ?? "add";
+  if (typeof date !== "string" || !DATE_ONLY.test(date)) {
     return reply.code(400).send({ error: "invalid plan" });
   }
-  if (!(await meals.planMeal(date, mealId as string | null))) {
+  if (action === "clear") {
+    await meals.planClear(date);
+    return { ok: true };
+  }
+  if (typeof mealId !== "string") {
+    return reply.code(400).send({ error: "mealId required" });
+  }
+  if (action === "remove") {
+    await meals.planRemove(date, mealId);
+    return { ok: true };
+  }
+  if (action !== "add") {
+    return reply.code(400).send({ error: "action must be add, remove, or clear" });
+  }
+  if (!(await meals.planAdd(date, mealId))) {
     return reply.code(404).send({ error: "no such meal" });
   }
   return { ok: true };
