@@ -10,15 +10,7 @@ swayidle -w \
   timeout 1800 'wlopm --off \*' \
   resume 'wlopm --on \*' &
 
-# --password-store=basic suppresses the keyring unlock prompt on boot.
-# --check-for-update-interval stops the update nag from stealing focus.
-chromium \
-  --kiosk \
-  --noerrdialogs \
-  --disable-infobars \
-  --disable-session-crashed-bubble \
-  --disable-features=Translate \
-  --password-store=basic \
-  --check-for-update-interval=31536000 \
-  --autoplay-policy=no-user-gesture-required \
-  http://localhost:8080 &
+# Launch the kiosk via the relaunch-loop wrapper so it survives crashes and a
+# deploy can reload it by killing Chromium (the loop brings it back). All the
+# Chromium flags live in deploy/kiosk.sh.
+~/home-manager/deploy/kiosk.sh &
