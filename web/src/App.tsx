@@ -48,6 +48,30 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [tab]);
 
+  // The wall's touch panel "chatters" — one physical tap can emit a burst of
+  // ~25 clicks/sec on the same control, which flips a chore on/off repeatedly.
+  // Swallow rapid repeat clicks on the same element (capture phase, before
+  // React sees them). Continuous chatter keeps resetting the timer, so only
+  // the first click of a burst gets through; a real second tap (>350ms) works.
+  useEffect(() => {
+    let lastEl: EventTarget | null = null;
+    let lastAt = 0;
+    const COOLDOWN_MS = 350;
+    const onClickCapture = (e: MouseEvent) => {
+      const now = e.timeStamp || performance.now();
+      const sameEl = e.target === lastEl;
+      const recent = now - lastAt < COOLDOWN_MS;
+      lastEl = e.target;
+      lastAt = now;
+      if (sameEl && recent) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("click", onClickCapture, true);
+    return () => document.removeEventListener("click", onClickCapture, true);
+  }, []);
+
   const page = (delta: number) =>
     setWeekOffset((w) => Math.min(MAX_WEEK, Math.max(MIN_WEEK, w + delta)));
 
