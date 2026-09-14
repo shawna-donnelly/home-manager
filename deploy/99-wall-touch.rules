@@ -1,0 +1,9 @@
+# Wall touchscreen (RTK FT156ZB HDMI panel, Wacom-based digitizer) aligned to
+# the 90° portrait display. The panel exposes two interfaces: a "Pen" digitizer
+# and a "Finger" touch. We use only finger touch, so ignore the pen (it sends
+# un-rotated events otherwise), and rotate the finger coordinates 90° to match
+# the display. If taps land rotated the wrong way, swap the matrix to the 270°
+# value: "0 1 0 -1 0 1".
+# Install: sudo cp deploy/99-wall-touch.rules /etc/udev/rules.d/ && reboot
+SUBSYSTEM=="input", ATTRS{name}=="Wacom TouchScreen Pen", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+SUBSYSTEM=="input", ATTRS{name}=="Wacom TouchScreen Finger", ENV{LIBINPUT_CALIBRATION_MATRIX}="0 -1 1 1 0 0"

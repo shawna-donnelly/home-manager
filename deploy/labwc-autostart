@@ -3,6 +3,10 @@
 # Current Raspberry Pi OS uses labwc (Wayland). X11-era instructions using
 # xset, unclutter, or ~/.config/lxsession/ do nothing here.
 
+# Portrait: rotate the HDMI output 90°. Touch is rotated to match at the
+# libinput level via /etc/udev/rules.d/99-wall-touch.rules (see deploy notes).
+wlr-randr --output HDMI-A-1 --transform 90
+
 # Blank the display overnight rather than running the panel 24/7.
 # Known issue: on some panels the display does not wake cleanly from wlopm.
 # Test this before mounting anything on a wall.
