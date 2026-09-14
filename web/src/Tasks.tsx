@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { callAllowed } from "./tapguard";
 import type { TasksView } from "./useEvents";
 
 /**
@@ -8,6 +9,11 @@ import type { TasksView } from "./useEvents";
  */
 
 async function send(path: string, method: string, body?: unknown) {
+  // Drop touch-panel chatter: identical mutations in quick succession are the
+  // burst, not real taps. Body is part of the key so distinct actions to the
+  // same endpoint (e.g. different meals) aren't wrongly merged.
+  if (!callAllowed(`${method} ${path} ${body ? JSON.stringify(body) : ""}`))
+    return;
   await fetch(path, {
     method,
     ...(body

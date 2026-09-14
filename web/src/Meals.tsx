@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { callAllowed } from "./tapguard";
 import type { Meal, MealsView, ShoppingItem } from "./useEvents";
 
 const PREP_WORDS =
@@ -58,6 +59,11 @@ export function foodEmoji(title: string): string {
 }
 
 async function send(path: string, method: string, body?: object) {
+  // Drop touch-panel chatter (see tapguard); body is in the key so selecting
+  // different meals on one day — all POST /api/mealplan — isn't merged.
+  if (!callAllowed(`${method} ${path} ${body ? JSON.stringify(body) : ""}`)) {
+    return true;
+  }
   const res = await fetch(path, {
     method,
     ...(body

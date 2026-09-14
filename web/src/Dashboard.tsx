@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { SourceInfo } from "./AddEvent";
 import { avatarUrl, type Avatars } from "./avatars";
 import { foodEmoji } from "./Meals";
+import { callAllowed } from "./tapguard";
 import { Confetti, choreEmoji } from "./Tasks";
 import type {
   CalendarEvent,
@@ -13,6 +14,12 @@ import { CONDITION_EMOJI, forecastFor } from "./weather";
 
 /** Avatar/accent pastels, assigned per kid by position. */
 const KID_TINTS = ["#d9d4f6", "#f9d5e0", "#cfe3fb", "#d9efd9", "#ffe9a8"];
+
+/** POST that ignores touch-panel chatter (repeat taps within the cooldown). */
+function guardedPost(url: string): void {
+  if (!callAllowed(`POST ${url}`)) return;
+  void fetch(url, { method: "POST" });
+}
 
 /**
  * The at-a-glance family hub, styled after commercial wall displays: a light
@@ -261,11 +268,7 @@ function ChoreRows({ chores, done }: { chores: Chore[]; done: Set<string> }) {
             <button
               type="button"
               className={`krow__check${isDone ? " krow__check--on" : ""}`}
-              onClick={() =>
-                void fetch(`/api/chores/${chore.id}/toggle`, {
-                  method: "POST",
-                })
-              }
+              onClick={() => guardedPost(`/api/chores/${chore.id}/toggle`)}
               aria-label={`Toggle ${chore.title}`}
             >
               {isDone ? "✓" : ""}
@@ -386,11 +389,7 @@ function TonightCard({
                 <button
                   type="button"
                   className="krow__check"
-                  onClick={() =>
-                    void fetch(`/api/todos/${todo.id}/toggle`, {
-                      method: "POST",
-                    })
-                  }
+                  onClick={() => guardedPost(`/api/todos/${todo.id}/toggle`)}
                   aria-label={`Toggle ${todo.title}`}
                 >
                   {""}

@@ -54,16 +54,28 @@ export default function App() {
   // React sees them). Continuous chatter keeps resetting the timer, so only
   // the first click of a burst gets through; a real second tap (>350ms) works.
   useEffect(() => {
-    let lastEl: EventTarget | null = null;
+    let lastKey: Element | null = null;
     let lastAt = 0;
     const COOLDOWN_MS = 350;
+    // Key off the nearest control, not the exact node — a chatter burst can
+    // land on different descendants of the same button, so comparing raw
+    // targets misses. Fall back to the raw target when no control ancestor.
+    const controlOf = (t: EventTarget | null): Element | null => {
+      const el = t as HTMLElement | null;
+      return (
+        el?.closest?.(
+          'button, a, input, select, textarea, label, [role="button"]',
+        ) ??
+        (el as Element | null)
+      );
+    };
     const onClickCapture = (e: MouseEvent) => {
       const now = e.timeStamp || performance.now();
-      const sameEl = e.target === lastEl;
-      const recent = now - lastAt < COOLDOWN_MS;
-      lastEl = e.target;
+      const key = controlOf(e.target);
+      const suppress = key === lastKey && now - lastAt < COOLDOWN_MS;
+      lastKey = key;
       lastAt = now;
-      if (sameEl && recent) {
+      if (suppress) {
         e.stopPropagation();
         e.preventDefault();
       }
