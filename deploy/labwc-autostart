@@ -5,8 +5,8 @@
 
 # Portrait: rotate the HDMI output 90°. Retry, because at autostart time the
 # HDMI output may not be enumerated yet (a bare one-shot silently no-ops and
-# the screen stays landscape). Touch is rotated to match at the libinput level
-# via /etc/udev/rules.d/99-wall-touch.rules (see deploy notes).
+# the screen stays landscape). labwc auto-rotates touch to match this
+# transform, so no touch calibration is needed (see 99-wall-touch.rules).
 (for i in 1 2 3 4 5 6 7 8; do
    wlr-randr --output HDMI-A-1 --transform 90 && break
    sleep 1

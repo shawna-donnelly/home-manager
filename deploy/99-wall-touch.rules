@@ -1,8 +1,12 @@
-# Wall touchscreen (RTK FT156ZB HDMI panel, Wacom-based digitizer) aligned to
-# the 90° portrait display. Touch is delivered via the "Pen" interface on this
-# panel, so DON'T ignore it — rotate both interfaces to match the display.
-# The panel's touch is natively landscape, so a 90° (clockwise) matrix aligns
-# it to the portrait display. If taps are 180° off, use "0 1 0 -1 0 1".
+# Wall touchscreen (RTK FT156ZB HDMI panel, Wacom-based digitizer).
+#
+# Touch is delivered via BOTH the "Pen" and "Finger" interfaces — do NOT ignore
+# either (ignoring the pen kills touch entirely on this panel).
+#
+# No rotation is applied here on purpose: labwc/wlroots already rotates touch to
+# match the output transform (set to portrait in deploy/labwc-autostart), so an
+# identity matrix is correct. A rotating matrix here just DOUBLE-rotates and
+# throws taps off by that angle (verified empirically). Leave it identity.
 # Install: sudo cp deploy/99-wall-touch.rules /etc/udev/rules.d/ && reboot
-SUBSYSTEM=="input", ATTRS{name}=="Wacom TouchScreen Pen", ENV{LIBINPUT_CALIBRATION_MATRIX}="0 -1 1 1 0 0"
-SUBSYSTEM=="input", ATTRS{name}=="Wacom TouchScreen Finger", ENV{LIBINPUT_CALIBRATION_MATRIX}="0 -1 1 1 0 0"
+SUBSYSTEM=="input", ATTRS{name}=="Wacom TouchScreen Pen", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0"
+SUBSYSTEM=="input", ATTRS{name}=="Wacom TouchScreen Finger", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0"
