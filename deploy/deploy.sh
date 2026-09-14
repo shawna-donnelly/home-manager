@@ -11,7 +11,7 @@ echo "› restarting services"
 sudo systemctl restart home-manager
 sudo systemctl restart home-manager-mcp
 echo "› reloading kiosk"
-pkill -f 'chromium --kiosk' 2>/dev/null || true   # kiosk.sh loop respawns it
+pkill -f 'chromium.*--kiosk' 2>/dev/null || true   # kiosk.sh loop respawns it
 # Drop Chromium's HTTP cache so the respawn loads the freshly built bundle,
 # not a stale index.html/JS from disk cache.
 rm -rf "$HOME/.kiosk-chrome/Default/Cache" "$HOME/.kiosk-chrome/Default/Code Cache" 2>/dev/null || true
