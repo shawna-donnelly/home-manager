@@ -542,6 +542,9 @@ app.get("/api/photos", async () => {
 if (existsSync(webDist)) {
   await app.register(fastifyStatic, {
     root: webDist,
+    // Turn off the plugin's own cache-control so setHeaders is authoritative
+    // (otherwise it overwrites ours with public,max-age=0).
+    cacheControl: false,
     // Hashed assets are immutable and safe to cache forever; the shell
     // (index.html) must never be cached or the kiosk keeps loading an old
     // build after a deploy (its filename doesn't change, only its contents).
