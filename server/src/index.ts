@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
@@ -540,9 +540,23 @@ app.get("/api/photos", async () => {
 });
 
 if (existsSync(webDist)) {
-  await app.register(fastifyStatic, { root: webDist });
+  await app.register(fastifyStatic, {
+    root: webDist,
+    // Hashed assets are immutable and safe to cache forever; the shell
+    // (index.html) must never be cached or the kiosk keeps loading an old
+    // build after a deploy (its filename doesn't change, only its contents).
+    setHeaders(res, path) {
+      if (path.endsWith(".html")) {
+        res.setHeader("cache-control", "no-store");
+      } else if (path.includes(`${sep}assets${sep}`)) {
+        res.setHeader("cache-control", "public, max-age=31536000, immutable");
+      }
+    },
+  });
   // Single page — anything unmatched returns the shell.
-  app.setNotFoundHandler((_request, reply) => reply.sendFile("index.html"));
+  app.setNotFoundHandler((_request, reply) =>
+    reply.header("cache-control", "no-store").sendFile("index.html"),
+  );
 } else {
   app.log.warn(`no web build at ${webDist}; run "npm run build" in web/`);
 }
