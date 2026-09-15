@@ -17,6 +17,7 @@ import {
   PORT,
   REWARDS,
   loadEmailConfig,
+  loadLightControl,
   loadSensorSources,
   loadShoppingList,
   loadSources,
@@ -45,6 +46,7 @@ const tasks = new TaskStore(
 const notifier = createNotifier(loadEmailConfig());
 const meals = new MealStore(DATA_DIR);
 const shopping = loadShoppingList();
+const lightControl = loadLightControl();
 
 /** Latest shopping items pushed by HA's websocket; null until it delivers. */
 let shoppingLive: ShoppingItem[] | null = null;
@@ -154,6 +156,73 @@ app.post("/api/events", async (request, reply) => {
 app.post("/api/refresh", async () => {
   await poller.refresh();
   return poller.snapshot;
+});
+
+const isByte = (n: unknown): n is number =>
+  typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 255;
+
+/**
+ * Control one light: on/off, brightness, colour. The entity must be one HA
+ * already reports (guards against arbitrary service calls), then we refetch
+ * just the lights so every display reflects the change within a second.
+ */
+app.post("/api/lights/:entityId", async (request, reply) => {
+  if (!lightControl) {
+    return reply.code(503).send({ error: "no lights configured" });
+  }
+  const { entityId } = request.params as { entityId: string };
+  if (!poller.snapshot.lights.some((l) => l.entityId === entityId)) {
+    return reply.code(404).send({ error: "no such light" });
+  }
+
+  const body = request.body as {
+    on?: unknown;
+    brightness?: unknown;
+    rgb?: unknown;
+    kelvin?: unknown;
+  } | null;
+
+  const cmd: {
+    on?: boolean;
+    brightness?: number;
+    rgb?: [number, number, number];
+    kelvin?: number;
+  } = {};
+  if (body?.on !== undefined) {
+    if (typeof body.on !== "boolean") {
+      return reply.code(400).send({ error: "on must be boolean" });
+    }
+    cmd.on = body.on;
+  }
+  if (body?.brightness !== undefined) {
+    if (!isByte(body.brightness)) {
+      return reply.code(400).send({ error: "brightness must be 0-255" });
+    }
+    cmd.brightness = body.brightness;
+  }
+  if (body?.rgb !== undefined) {
+    const rgb = body.rgb;
+    if (!Array.isArray(rgb) || rgb.length !== 3 || !rgb.every(isByte)) {
+      return reply.code(400).send({ error: "rgb must be [r,g,b] 0-255" });
+    }
+    cmd.rgb = rgb as [number, number, number];
+  }
+  if (body?.kelvin !== undefined) {
+    const k = body.kelvin;
+    if (typeof k !== "number" || !Number.isInteger(k) || k < 1500 || k > 8000) {
+      return reply.code(400).send({ error: "kelvin must be 1500-8000" });
+    }
+    cmd.kelvin = k;
+  }
+
+  try {
+    await lightControl.setLight(entityId, cmd);
+  } catch (err) {
+    request.log.error({ err }, "light control failed");
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+  await poller.refreshLights();
+  return { ok: true };
 });
 
 /**

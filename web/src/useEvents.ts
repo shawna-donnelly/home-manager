@@ -49,6 +49,21 @@ export interface PersonLocation {
   stale: boolean;
 }
 
+export interface LightState {
+  id: string;
+  sourceId: string;
+  entityId: string;
+  name: string;
+  on: boolean;
+  /** 0–255. */
+  brightness?: number;
+  rgb?: [number, number, number];
+  supportsColor: boolean;
+  supportsColorTemp: boolean;
+  reachable: boolean;
+  updatedAt: string;
+}
+
 export interface Chore {
   id: string;
   kid: string;
@@ -108,6 +123,7 @@ export interface Snapshot {
   sensors: SensorReading[];
   locations?: PersonLocation[];
   forecast?: ForecastDay[];
+  lights?: LightState[];
   tasks?: TasksView;
   meals?: MealsView;
   /** Live shopping items, pushed when Home Assistant reports a change. */

@@ -1386,3 +1386,157 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- Lights tab -------------------------------------------------------- */
+
+.lights {
+  list-style: none;
+  margin: 0;
+  padding: var(--gap);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--gap);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.lights__empty {
+  padding: var(--gap);
+  color: var(--text-dim);
+}
+
+.light {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 1.5);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.light--off-grid {
+  opacity: 0.5;
+}
+
+.light__head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+/* Big round tap target — the whole thing is the on/off switch. */
+.light__bulb {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 50%;
+  border: none;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+  background: #20222b;
+  color: #6b7280;
+  filter: grayscale(1) opacity(0.6);
+  transition: box-shadow 0.15s, background 0.15s, filter 0.15s;
+}
+
+.light--on .light__bulb {
+  background: color-mix(in srgb, var(--glow) 30%, #20222b);
+  color: #fff;
+  filter: none;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--glow) 22%, transparent),
+    0 0 26px color-mix(in srgb, var(--glow) 55%, transparent);
+}
+
+.light__bulb:disabled {
+  cursor: default;
+}
+
+.light__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.light__name {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.light__state {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.light__slider {
+  width: 100%;
+  height: 34px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(90deg, #3a3f4b, #e8eaed);
+  border-radius: 999px;
+  outline: none;
+  margin: 0;
+}
+
+.light__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #cbd0da;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+}
+
+.light__slider::-moz-range-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #cbd0da;
+}
+
+.light__swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+  gap: 0.5rem;
+}
+
+.swatch {
+  aspect-ratio: 1;
+  min-height: 40px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.15);
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch:active {
+  transform: scale(0.92);
+}
+
+.light__whites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.light__white {
+  flex: 1 1 auto;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #20222b;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.light__white:active {
+  transform: scale(0.96);
+}

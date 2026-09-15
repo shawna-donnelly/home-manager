@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AddEvent, { type SourceInfo } from "./AddEvent";
 import { useAvatars } from "./avatars";
 import Dashboard from "./Dashboard";
+import Lights from "./Lights";
 import MapView from "./MapView";
 import Meals from "./Meals";
 import { ChoreChart, TodoList } from "./Tasks";
@@ -23,7 +24,14 @@ const MAX_WEEK = 8;
 /** A browsed-away display returns to today on its own — it's a wall, not a tab. */
 const RETURN_TO_TODAY_MS = 5 * 60_000;
 
-type Tab = "dashboard" | "calendar" | "chores" | "todo" | "meals" | "map";
+type Tab =
+  | "dashboard"
+  | "calendar"
+  | "chores"
+  | "todo"
+  | "meals"
+  | "lights"
+  | "map";
 
 /**
  * Deliberately plain. This exists to prove the data path end to end — feeds
@@ -113,6 +121,7 @@ export default function App() {
   const sensors = snapshot?.sensors ?? [];
   const locations = snapshot?.locations ?? [];
   const forecast = snapshot?.forecast ?? [];
+  const lights = snapshot?.lights ?? [];
   const avatars = useAvatars();
 
   const [sources, setSources] = useState<SourceInfo[]>([]);
@@ -179,6 +188,15 @@ export default function App() {
               🍽️ Meals
             </button>
           )}
+          {lights.length > 0 && (
+            <button
+              type="button"
+              className={`nav__button tab${tab === "lights" ? " tab--active" : ""}`}
+              onClick={() => setTab("lights")}
+            >
+              💡 Lights
+            </button>
+          )}
           {locations.length > 0 && (
             <button
               type="button"
@@ -239,6 +257,7 @@ export default function App() {
       {tab === "meals" && snapshot?.meals && (
         <Meals view={snapshot.meals} now={now} live={snapshot.shopping} />
       )}
+      {tab === "lights" && lights.length > 0 && <Lights lights={lights} />}
       {tab === "map" && locations.length > 0 && (
         <MapView locations={locations} now={now} avatars={avatars} />
       )}

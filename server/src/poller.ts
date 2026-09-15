@@ -7,6 +7,7 @@ import {
 import { sortEvents, type CalendarEvent, type Snapshot } from "./events.js";
 import type {
   ForecastDay,
+  LightState,
   PersonLocation,
   SensorReading,
 } from "./readings.js";
@@ -25,11 +26,13 @@ export class Poller {
   #lastGoodReadings = new Map<string, SensorReading[]>();
   #lastGoodLocations = new Map<string, PersonLocation[]>();
   #lastGoodForecast = new Map<string, ForecastDay[]>();
+  #lastGoodLights = new Map<string, LightState[]>();
   #snapshot: Snapshot = {
     events: [],
     sensors: [],
     locations: [],
     forecast: [],
+    lights: [],
     fetchedAt: "",
     degraded: [],
   };
@@ -56,8 +59,16 @@ export class Poller {
       const sensors = cached.sensors.filter((r) => known.has(r.sourceId));
       const locations = cached.locations.filter((l) => known.has(l.sourceId));
       const forecast = cached.forecast.filter((f) => known.has(f.sourceId));
+      const lights = (cached.lights ?? []).filter((l) => known.has(l.sourceId));
 
-      this.#snapshot = { ...cached, events, sensors, locations, forecast };
+      this.#snapshot = {
+        ...cached,
+        events,
+        sensors,
+        locations,
+        forecast,
+        lights,
+      };
       for (const event of events) {
         const bucket = this.#lastGoodEvents.get(event.sourceId) ?? [];
         bucket.push(event);
@@ -77,6 +88,11 @@ export class Poller {
         const bucket = this.#lastGoodForecast.get(day.sourceId) ?? [];
         bucket.push(day);
         this.#lastGoodForecast.set(day.sourceId, bucket);
+      }
+      for (const light of lights) {
+        const bucket = this.#lastGoodLights.get(light.sourceId) ?? [];
+        bucket.push(light);
+        this.#lastGoodLights.set(light.sourceId, bucket);
       }
       console.log(
         `[poller] restored ${events.length} cached events, ${sensors.length} readings` +
@@ -117,13 +133,20 @@ export class Poller {
       const fetchForecast = s.fetchForecast?.bind(s);
       return fetchForecast ? [{ id: s.id, fetchForecast }] : [];
     });
-    const [calendarResults, sensorResults, locationResults, forecastResults] =
-      await Promise.all([
-        Promise.allSettled(this.#calendarSources.map((s) => s.fetch(window))),
-        Promise.allSettled(this.#sensorSources.map((s) => s.fetch())),
-        Promise.allSettled(trackerSources.map((s) => s.fetchLocations())),
-        Promise.allSettled(weatherSources.map((s) => s.fetchForecast())),
-      ]);
+    const lightSources = this.#lightSources();
+    const [
+      calendarResults,
+      sensorResults,
+      locationResults,
+      forecastResults,
+      lightResults,
+    ] = await Promise.all([
+      Promise.allSettled(this.#calendarSources.map((s) => s.fetch(window))),
+      Promise.allSettled(this.#sensorSources.map((s) => s.fetch())),
+      Promise.allSettled(trackerSources.map((s) => s.fetchLocations())),
+      Promise.allSettled(weatherSources.map((s) => s.fetchForecast())),
+      Promise.allSettled(lightSources.map((s) => s.fetchLights())),
+    ]);
 
     const degraded: string[] = [];
 
@@ -149,20 +172,59 @@ export class Poller {
     settle(this.#sensorSources, sensorResults, this.#lastGoodReadings);
     settle(trackerSources, locationResults, this.#lastGoodLocations);
     settle(weatherSources, forecastResults, this.#lastGoodForecast);
+    settle(lightSources, lightResults, this.#lastGoodLights);
 
-    this.#snapshot = {
+    // A source that failed several of its fetches lists once.
+    this.#snapshot = this.#assemble(now.toISOString(), [...new Set(degraded)]);
+
+    await writeSnapshot(this.#snapshot);
+    for (const listener of this.#listeners) listener(this.#snapshot);
+  }
+
+  /**
+   * Refetch only the lights and push the result. Called right after the wall
+   * changes a light so the new state shows within a second — without the cost
+   * of re-hitting every calendar API on each tap (a full refresh() would).
+   */
+  async refreshLights(): Promise<void> {
+    const lightSources = this.#lightSources();
+    const results = await Promise.allSettled(
+      lightSources.map((s) => s.fetchLights()),
+    );
+    results.forEach((result, i) => {
+      const source = lightSources[i];
+      if (source && result.status === "fulfilled") {
+        this.#lastGoodLights.set(source.id, result.value);
+      }
+    });
+
+    // Keep the last full-refresh timestamp and degraded set; only lights moved.
+    this.#snapshot = this.#assemble(
+      this.#snapshot.fetchedAt,
+      this.#snapshot.degraded,
+    );
+    await writeSnapshot(this.#snapshot);
+    for (const listener of this.#listeners) listener(this.#snapshot);
+  }
+
+  #lightSources(): { id: string; fetchLights: () => Promise<LightState[]> }[] {
+    return this.#sensorSources.flatMap((s) => {
+      const fetchLights = s.fetchLights?.bind(s);
+      return fetchLights ? [{ id: s.id, fetchLights }] : [];
+    });
+  }
+
+  #assemble(fetchedAt: string, degraded: string[]): Snapshot {
+    return {
       events: sortEvents([...this.#lastGoodEvents.values()].flat()),
       // No global sort: each source already emits readings in display order.
       sensors: [...this.#lastGoodReadings.values()].flat(),
       locations: [...this.#lastGoodLocations.values()].flat(),
       forecast: [...this.#lastGoodForecast.values()].flat(),
-      fetchedAt: now.toISOString(),
-      // A source that failed both its sensor and location fetch lists once.
-      degraded: [...new Set(degraded)],
+      lights: [...this.#lastGoodLights.values()].flat(),
+      fetchedAt,
+      degraded,
     };
-
-    await writeSnapshot(this.#snapshot);
-    for (const listener of this.#listeners) listener(this.#snapshot);
   }
 }
 

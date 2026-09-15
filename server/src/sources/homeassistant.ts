@@ -1,5 +1,6 @@
 import type {
   ForecastDay,
+  LightState,
   PersonLocation,
   SensorReading,
 } from "../readings.js";
@@ -31,6 +32,12 @@ export interface HomeAssistantConfig {
    * Unset means no forecast.
    */
   weatherEntity?: string;
+  /**
+   * `light.*` entity ids to expose on the Lights tab, in display order. Empty
+   * means every `light.*` entity HA knows about (sorted by name) — the common
+   * case for a small household.
+   */
+  lights: string[];
 }
 
 /** The subset of HA's /api/states response this adapter reads. */
@@ -46,6 +53,9 @@ interface HaState {
     longitude?: number;
     gps_accuracy?: number;
     temperature_unit?: string;
+    brightness?: number;
+    rgb_color?: [number, number, number];
+    supported_color_modes?: string[];
   };
 }
 
@@ -115,6 +125,29 @@ export function createHomeAssistantSource(
         );
       }
       return locations;
+    },
+
+    async fetchLights(): Promise<LightState[]> {
+      const states = await fetchStates();
+
+      const wanted = states.filter((s) =>
+        config.lights.length > 0
+          ? config.lights.includes(s.entity_id)
+          : s.entity_id.startsWith("light."),
+      );
+
+      const lights = wanted.map((s) => toLight(config.id, s));
+
+      if (config.lights.length > 0) {
+        lights.sort(
+          (a, b) =>
+            config.lights.indexOf(a.entityId) -
+            config.lights.indexOf(b.entityId),
+        );
+      } else {
+        lights.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      return lights;
     },
 
     ...(config.weatherEntity
@@ -257,6 +290,64 @@ export function createShoppingList(config: {
   };
 }
 
+/** One light change requested by the wall. All fields optional but one is expected. */
+export interface LightCommand {
+  /** false turns the bulb off; true (or any other field) turns it on. */
+  on?: boolean;
+  /** 0–255. */
+  brightness?: number;
+  rgb?: [number, number, number];
+  /** Colour temperature in kelvin, for white presets. */
+  kelvin?: number;
+}
+
+export interface LightControl {
+  setLight(entityId: string, cmd: LightCommand): Promise<void>;
+}
+
+/**
+ * Writes to Home Assistant `light.turn_on` / `light.turn_off`. HA owns the
+ * device; this is just another client, so a change made here shows up on
+ * phones and any other HA client too. Throws on failure — the route surfaces it.
+ */
+export function createLightControl(config: {
+  url: string;
+  token: string;
+}): LightControl {
+  const base = config.url.replace(/\/+$/, "");
+
+  const call = async (service: string, body: object): Promise<void> => {
+    const response = await fetch(`${base}/api/services/light/${service}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      throw new Error(`light ${service} returned ${response.status}`);
+    }
+  };
+
+  return {
+    async setLight(entityId: string, cmd: LightCommand): Promise<void> {
+      if (cmd.on === false) {
+        await call("turn_off", { entity_id: entityId });
+        return;
+      }
+      // Any of brightness/rgb/kelvin implies "on"; a bare {on:true} just
+      // switches it on at its last settings.
+      const body: Record<string, unknown> = { entity_id: entityId };
+      if (typeof cmd.brightness === "number") body.brightness = cmd.brightness;
+      if (cmd.rgb) body.rgb_color = cmd.rgb;
+      if (typeof cmd.kelvin === "number") body.color_temp_kelvin = cmd.kelvin;
+      await call("turn_on", body);
+    },
+  };
+}
+
 /**
  * Live shopping-list updates over HA's websocket — the same subscription
  * HA's own UI uses (`todo/item/subscribe`), so edits from a phone reach the
@@ -356,6 +447,32 @@ function toReading(sourceId: string, state: HaState): SensorReading {
       : {}),
     updatedAt: new Date(state.last_updated).toISOString(),
     stale,
+  };
+}
+
+/** Colour modes that mean the bulb can render an actual colour (not just white). */
+const COLOR_MODES = new Set(["rgb", "rgbw", "rgbww", "xy", "hs"]);
+
+function toLight(sourceId: string, state: HaState): LightState {
+  const modes = state.attributes.supported_color_modes ?? [];
+  const reachable = state.state !== "unavailable" && state.state !== "unknown";
+  const rgb = state.attributes.rgb_color;
+
+  return {
+    id: `${sourceId}:${state.entity_id}`,
+    sourceId,
+    entityId: state.entity_id,
+    name:
+      state.attributes.friendly_name ?? state.entity_id.replace(/^light\./, ""),
+    on: state.state === "on",
+    ...(typeof state.attributes.brightness === "number"
+      ? { brightness: state.attributes.brightness }
+      : {}),
+    ...(Array.isArray(rgb) && rgb.length === 3 ? { rgb } : {}),
+    supportsColor: modes.some((m) => COLOR_MODES.has(m)),
+    supportsColorTemp: modes.includes("color_temp"),
+    reachable,
+    updatedAt: new Date(state.last_updated).toISOString(),
   };
 }
 

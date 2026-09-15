@@ -17,6 +17,7 @@ export async function readSnapshot(): Promise<Snapshot | null> {
     parsed.sensors ??= [];
     parsed.locations ??= [];
     parsed.forecast ??= [];
+    parsed.lights ??= [];
     return parsed;
   } catch {
     return null;

@@ -75,3 +75,33 @@ export interface PersonLocation {
   /** True when the backend reports the tracker unavailable or unknown. */
   stale: boolean;
 }
+
+/**
+ * A controllable light, normalized from the backend (Home Assistant `light.*`
+ * entities). Unlike a SensorReading this is read/write: the wall shows its
+ * state and offers on/off, brightness, and colour. Capability flags come from
+ * the backend's supported_color_modes so the UI only shows controls the bulb
+ * actually has.
+ */
+export interface LightState {
+  /** Stable across polls. `${sourceId}:${entityId}`. */
+  id: string;
+  sourceId: string;
+  /** Backend-native identifier, e.g. `light.lightbulb_1`. */
+  entityId: string;
+  /** Display name, e.g. "Lightbulb 1". */
+  name: string;
+  on: boolean;
+  /** 0–255 when the backend reports it; absent for on/off-only bulbs. */
+  brightness?: number;
+  /** Current colour as [r, g, b], 0–255, when the bulb is showing one. */
+  rgb?: [number, number, number];
+  /** True if the bulb can show colours (rgb/xy/hs). */
+  supportsColor: boolean;
+  /** True if the bulb can do tunable white (colour temperature). */
+  supportsColorTemp: boolean;
+  /** False when the backend reports the bulb unavailable/unknown. */
+  reachable: boolean;
+  /** When the backend last saw this light's state change. UTC ISO. */
+  updatedAt: string;
+}

@@ -1,6 +1,7 @@
 import type { CalendarEvent } from "../events.js";
 import type {
   ForecastDay,
+  LightState,
   PersonLocation,
   SensorReading,
 } from "../readings.js";
@@ -66,4 +67,9 @@ export interface SensorSource {
    * contract as `fetch`.
    */
   fetchForecast?(): Promise<ForecastDay[]>;
+  /**
+   * Present on backends that expose controllable lights (Home Assistant
+   * `light.*` entities). Same failure contract as `fetch`.
+   */
+  fetchLights?(): Promise<LightState[]>;
 }

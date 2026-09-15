@@ -1,5 +1,6 @@
 import type {
   ForecastDay,
+  LightState,
   PersonLocation,
   SensorReading,
 } from "./readings.js";
@@ -31,6 +32,8 @@ export interface Snapshot {
   locations: PersonLocation[];
   /** Daily forecast for the calendar, keyed by local date. */
   forecast: ForecastDay[];
+  /** Controllable lights from sensor sources (Home Assistant). */
+  lights: LightState[];
   /** When the data was last successfully refreshed. */
   fetchedAt: string;
   /** Sources (calendar or sensor) that failed on the most recent poll, by id. */

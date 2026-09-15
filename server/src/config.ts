@@ -5,8 +5,10 @@ import {
 } from "./sources/googlecalendar.js";
 import {
   createHomeAssistantSource,
+  createLightControl,
   createShoppingList,
   watchShoppingList,
+  type LightControl,
   type ShoppingItem,
   type ShoppingList,
 } from "./sources/homeassistant.js";
@@ -171,8 +173,21 @@ export function loadSensorSources(): SensorSource[] {
       ...(process.env.HA_WEATHER
         ? { weatherEntity: process.env.HA_WEATHER }
         : {}),
+      // Lights for the Lights tab; unset shows every light.* HA knows.
+      lights: list(process.env.HA_LIGHTS),
     }),
   ];
+}
+
+/**
+ * Light on/off/colour control. Null (no HA) hides the Lights tab entirely.
+ * The Lights tab shows only once HA actually reports at least one light.
+ */
+export function loadLightControl(): LightControl | null {
+  const url = process.env.HA_URL;
+  const token = process.env.HA_TOKEN;
+  if (!url || !token) return null;
+  return createLightControl({ url, token });
 }
 
 /**
