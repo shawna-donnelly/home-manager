@@ -35,6 +35,24 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webDist = resolve(here, "../../web/dist");
 
 const app = Fastify({ logger: { level: "info" } });
+
+// Treat an empty application/json body as no body instead of 400ing it. Several
+// POSTs (toggles, theme apply) carry no payload; a client that still sets the
+// JSON content-type shouldn't have the request rejected as malformed.
+app.addContentTypeParser(
+  "application/json",
+  { parseAs: "string" },
+  (_req, body, done) => {
+    const text = typeof body === "string" ? body.trim() : "";
+    if (text === "") return done(null, undefined);
+    try {
+      done(null, JSON.parse(text));
+    } catch (err) {
+      (err as { statusCode?: number }).statusCode = 400;
+      done(err as Error, undefined);
+    }
+  },
+);
 const calendarSources = loadSources();
 const poller = new Poller(calendarSources, loadSensorSources());
 const tasks = new TaskStore(

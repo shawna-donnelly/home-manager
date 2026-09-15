@@ -137,10 +137,14 @@ function ColorWheel({
 }
 
 function post(url: string, body?: unknown): void {
+  // Only declare a JSON content-type when we actually send a body — a POST with
+  // `Content-Type: application/json` and an empty body is rejected as malformed
+  // (that silently broke theme apply, which needs no payload).
   fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    ...(body !== undefined
+      ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+      : {}),
   }).catch(() => {
     // A dropped command is harmless — the next SSE frame re-syncs the UI.
   });
