@@ -1773,3 +1773,24 @@ body {
 .light__white:active {
   transform: scale(0.96);
 }
+
+.light__wheel-toggle {
+  align-self: flex-start;
+  border: 1px solid var(--line);
+  background: #20222b;
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  min-height: 36px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.wheel {
+  width: min(100%, 200px);
+  aspect-ratio: 1;
+  align-self: center;
+  touch-action: none; /* let the wheel own drags instead of scrolling the page */
+  border-radius: 50%;
+  cursor: crosshair;
+}

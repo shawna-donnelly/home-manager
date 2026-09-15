@@ -39,6 +39,103 @@ interface LightCommand {
   kelvin?: number;
 }
 
+/** HSV (h 0–360, s/v 0–1) → [r,g,b] 0–255. */
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ];
+}
+
+/**
+ * A full HSV colour wheel drawn on a canvas: hue around the rim, saturation
+ * toward the white centre (brightness stays on the card's own slider). Applies
+ * live as a finger drags across it, throttled by the caller's cooldown.
+ */
+function ColorWheel({
+  onPick,
+  size = 168,
+}: {
+  onPick: (rgb: [number, number, number]) => void;
+  size?: number;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const down = useRef(false);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const img = ctx.createImageData(size, size);
+    const r = size / 2;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = x - r;
+        const dy = y - r;
+        const dist = Math.hypot(dx, dy);
+        const i = (y * size + x) * 4;
+        if (dist > r) {
+          img.data[i + 3] = 0; // transparent outside the circle
+          continue;
+        }
+        let h = (Math.atan2(dy, dx) * 180) / Math.PI;
+        if (h < 0) h += 360;
+        const [cr, cg, cb] = hsvToRgb(h, Math.min(1, dist / r), 1);
+        img.data[i] = cr;
+        img.data[i + 1] = cg;
+        img.data[i + 2] = cb;
+        img.data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }, [size]);
+
+  const pickAt = (clientX: number, clientY: number) => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const r = size / 2;
+    // Map the touch point from displayed pixels back to the canvas grid.
+    const x = ((clientX - rect.left) / rect.width) * size - r;
+    const y = ((clientY - rect.top) / rect.height) * size - r;
+    const dist = Math.hypot(x, y);
+    let h = (Math.atan2(y, x) * 180) / Math.PI;
+    if (h < 0) h += 360;
+    onPick(hsvToRgb(h, Math.min(1, dist / r), 1));
+  };
+
+  return (
+    <canvas
+      ref={ref}
+      width={size}
+      height={size}
+      className="wheel"
+      onPointerDown={(e) => {
+        down.current = true;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        pickAt(e.clientX, e.clientY);
+      }}
+      onPointerMove={(e) => down.current && pickAt(e.clientX, e.clientY)}
+      onPointerUp={() => (down.current = false)}
+      onPointerCancel={() => (down.current = false)}
+    />
+  );
+}
+
 function post(url: string, body?: unknown): void {
   fetch(url, {
     method: "POST",
@@ -195,8 +292,10 @@ export default function Lights({
 
 /** Header controls that fan a single command out to every bulb in a room. */
 function RoomControls({ room }: { room: string }) {
-  const apply = (cmd: LightCommand) => {
-    if (!callAllowed(`room-${room}-${JSON.stringify(cmd)}`)) return;
+  const [wheel, setWheel] = useState(false);
+  const apply = (cmd: LightCommand, throttleKey?: string) => {
+    if (!callAllowed(throttleKey ?? `room-${room}-${JSON.stringify(cmd)}`, 120))
+      return;
     post("/api/rooms/apply", { room, ...cmd });
   };
   return (
@@ -233,7 +332,21 @@ function RoomControls({ room }: { room: string }) {
             {w.name}
           </button>
         ))}
+        <button
+          type="button"
+          className="room__white"
+          aria-expanded={wheel}
+          onClick={() => setWheel((w) => !w)}
+        >
+          🎨 Wheel
+        </button>
       </div>
+      {wheel && (
+        <ColorWheel
+          size={140}
+          onPick={(rgb) => apply({ rgb, on: true }, `room-wheel-${room}`)}
+        />
+      )}
     </div>
   );
 }
@@ -253,6 +366,7 @@ function LightCard({
 }) {
   const [on, setOn] = useState(light.on);
   const [bri, setBri] = useState(light.brightness ?? 255);
+  const [wheel, setWheel] = useState(false);
   // While a finger is on the slider, don't let an incoming frame yank it back.
   const dragging = useRef(false);
 
@@ -378,6 +492,28 @@ function LightCard({
             </button>
           ))}
         </div>
+      )}
+
+      {light.reachable && light.supportsColor && (
+        <>
+          <button
+            type="button"
+            className="light__wheel-toggle"
+            aria-expanded={wheel}
+            onClick={() => setWheel((w) => !w)}
+          >
+            🎨 {wheel ? "Hide colour wheel" : "Colour wheel"}
+          </button>
+          {wheel && (
+            <ColorWheel
+              onPick={(rgb) => {
+                if (!callAllowed(`light-wheel-${light.entityId}`, 120)) return;
+                setOn(true);
+                setLight(light.entityId, { rgb, on: true });
+              }}
+            />
+          )}
+        </>
       )}
 
       {editMode && (
