@@ -24,6 +24,7 @@ import {
   startShoppingWatch,
 } from "./config.js";
 import type { ShoppingItem } from "./sources/homeassistant.js";
+import { LightStore, type ThemeBulb } from "./lights.js";
 import { MealStore, coreIngredient } from "./meals.js";
 import { startPhotoSync } from "./photosync.js";
 import { createNotifier, scheduleDailyChoreReport } from "./notify.js";
@@ -47,6 +48,7 @@ const notifier = createNotifier(loadEmailConfig());
 const meals = new MealStore(DATA_DIR);
 const shopping = loadShoppingList();
 const lightControl = loadLightControl();
+const lightStore = new LightStore(DATA_DIR);
 
 /** Latest shopping items pushed by HA's websocket; null until it delivers. */
 let shoppingLive: ShoppingItem[] | null = null;
@@ -57,6 +59,7 @@ const frame = () => ({
   ...poller.snapshot,
   tasks: tasks.view(),
   meals: meals.view(),
+  ...(lightControl ? { lightConfig: lightStore.view() } : {}),
   ...(shoppingLive ? { shopping: shoppingLive } : {}),
 });
 
@@ -161,6 +164,47 @@ app.post("/api/refresh", async () => {
 const isByte = (n: unknown): n is number =>
   typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 255;
 
+interface LightCmd {
+  on?: boolean;
+  brightness?: number;
+  rgb?: [number, number, number];
+  kelvin?: number;
+}
+
+/** Validate a light command body into a LightCmd, or return an error string. */
+function parseLightCmd(body: unknown): { cmd: LightCmd } | { error: string } {
+  const b = body as {
+    on?: unknown;
+    brightness?: unknown;
+    rgb?: unknown;
+    kelvin?: unknown;
+  } | null;
+  const cmd: LightCmd = {};
+  if (b?.on !== undefined) {
+    if (typeof b.on !== "boolean") return { error: "on must be boolean" };
+    cmd.on = b.on;
+  }
+  if (b?.brightness !== undefined) {
+    if (!isByte(b.brightness)) return { error: "brightness must be 0-255" };
+    cmd.brightness = b.brightness;
+  }
+  if (b?.rgb !== undefined) {
+    const rgb = b.rgb;
+    if (!Array.isArray(rgb) || rgb.length !== 3 || !rgb.every(isByte)) {
+      return { error: "rgb must be [r,g,b] 0-255" };
+    }
+    cmd.rgb = rgb as [number, number, number];
+  }
+  if (b?.kelvin !== undefined) {
+    const k = b.kelvin;
+    if (typeof k !== "number" || !Number.isInteger(k) || k < 1500 || k > 8000) {
+      return { error: "kelvin must be 1500-8000" };
+    }
+    cmd.kelvin = k;
+  }
+  return { cmd };
+}
+
 /**
  * Control one light: on/off, brightness, colour. The entity must be one HA
  * already reports (guards against arbitrary service calls), then we refetch
@@ -174,51 +218,128 @@ app.post("/api/lights/:entityId", async (request, reply) => {
   if (!poller.snapshot.lights.some((l) => l.entityId === entityId)) {
     return reply.code(404).send({ error: "no such light" });
   }
-
-  const body = request.body as {
-    on?: unknown;
-    brightness?: unknown;
-    rgb?: unknown;
-    kelvin?: unknown;
-  } | null;
-
-  const cmd: {
-    on?: boolean;
-    brightness?: number;
-    rgb?: [number, number, number];
-    kelvin?: number;
-  } = {};
-  if (body?.on !== undefined) {
-    if (typeof body.on !== "boolean") {
-      return reply.code(400).send({ error: "on must be boolean" });
-    }
-    cmd.on = body.on;
-  }
-  if (body?.brightness !== undefined) {
-    if (!isByte(body.brightness)) {
-      return reply.code(400).send({ error: "brightness must be 0-255" });
-    }
-    cmd.brightness = body.brightness;
-  }
-  if (body?.rgb !== undefined) {
-    const rgb = body.rgb;
-    if (!Array.isArray(rgb) || rgb.length !== 3 || !rgb.every(isByte)) {
-      return reply.code(400).send({ error: "rgb must be [r,g,b] 0-255" });
-    }
-    cmd.rgb = rgb as [number, number, number];
-  }
-  if (body?.kelvin !== undefined) {
-    const k = body.kelvin;
-    if (typeof k !== "number" || !Number.isInteger(k) || k < 1500 || k > 8000) {
-      return reply.code(400).send({ error: "kelvin must be 1500-8000" });
-    }
-    cmd.kelvin = k;
-  }
+  const parsed = parseLightCmd(request.body);
+  if ("error" in parsed) return reply.code(400).send({ error: parsed.error });
 
   try {
-    await lightControl.setLight(entityId, cmd);
+    await lightControl.setLight(entityId, parsed.cmd);
   } catch (err) {
     request.log.error({ err }, "light control failed");
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+  await poller.refreshLights();
+  return { ok: true };
+});
+
+/** Assign a bulb to a room (empty room clears the assignment). */
+app.post("/api/rooms/assign", async (request, reply) => {
+  if (!lightControl) {
+    return reply.code(503).send({ error: "no lights configured" });
+  }
+  const body = request.body as { entityId?: unknown; room?: unknown } | null;
+  const entityId = typeof body?.entityId === "string" ? body.entityId : "";
+  const room = typeof body?.room === "string" ? body.room : "";
+  if (!entityId || !poller.snapshot.lights.some((l) => l.entityId === entityId)) {
+    return reply.code(404).send({ error: "no such light" });
+  }
+  await lightStore.setRoom(entityId, room);
+  return { ok: true };
+});
+
+/** Apply one command to every bulb assigned to a room. */
+app.post("/api/rooms/apply", async (request, reply) => {
+  if (!lightControl) {
+    return reply.code(503).send({ error: "no lights configured" });
+  }
+  const body = request.body as { room?: unknown } | null;
+  const room = typeof body?.room === "string" ? body.room.trim() : "";
+  if (!room) return reply.code(400).send({ error: "room required" });
+  const parsed = parseLightCmd(request.body);
+  if ("error" in parsed) return reply.code(400).send({ error: parsed.error });
+
+  // Only bulbs that are both assigned to the room and currently known to HA.
+  const known = new Set(poller.snapshot.lights.map((l) => l.entityId));
+  const targets = lightStore.bulbsInRoom(room).filter((e) => known.has(e));
+  if (targets.length === 0) {
+    return reply.code(404).send({ error: "no lights in that room" });
+  }
+
+  const results = await Promise.allSettled(
+    targets.map((e) => lightControl.setLight(e, parsed.cmd)),
+  );
+  if (results.every((r) => r.status === "rejected")) {
+    return reply.code(502).send({ error: "home assistant unreachable" });
+  }
+  await poller.refreshLights();
+  return { ok: true, applied: results.filter((r) => r.status === "fulfilled").length };
+});
+
+/**
+ * Save a theme: snapshot the current state of every known bulb (or just the
+ * bulbs in `room`, when given) so it can be re-applied later.
+ */
+app.post("/api/themes", async (request, reply) => {
+  if (!lightControl) {
+    return reply.code(503).send({ error: "no lights configured" });
+  }
+  const body = request.body as { name?: unknown; room?: unknown } | null;
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  if (!name) return reply.code(400).send({ error: "name required" });
+
+  const room = typeof body?.room === "string" ? body.room.trim() : "";
+  const inRoom = room ? new Set(lightStore.bulbsInRoom(room)) : null;
+  const bulbs: ThemeBulb[] = poller.snapshot.lights
+    .filter((l) => l.reachable && (!inRoom || inRoom.has(l.entityId)))
+    .map((l) => ({
+      entityId: l.entityId,
+      on: l.on,
+      ...(typeof l.brightness === "number" ? { brightness: l.brightness } : {}),
+      ...(l.rgb ? { rgb: l.rgb } : {}),
+    }));
+  if (bulbs.length === 0) {
+    return reply.code(400).send({ error: "no lights to save" });
+  }
+
+  const theme = await lightStore.addTheme(name, bulbs);
+  if (!theme) return reply.code(400).send({ error: "could not save theme" });
+  return { ok: true, theme };
+});
+
+app.delete("/api/themes/:id", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  if (!(await lightStore.removeTheme(id))) {
+    return reply.code(404).send({ error: "no such theme" });
+  }
+  return { ok: true };
+});
+
+/** Re-apply a saved theme to its bulbs. */
+app.post("/api/themes/:id/apply", async (request, reply) => {
+  if (!lightControl) {
+    return reply.code(503).send({ error: "no lights configured" });
+  }
+  const { id } = request.params as { id: string };
+  const theme = lightStore.getTheme(id);
+  if (!theme) return reply.code(404).send({ error: "no such theme" });
+
+  const known = new Set(poller.snapshot.lights.map((l) => l.entityId));
+  const targets = theme.bulbs.filter((b) => known.has(b.entityId));
+  if (targets.length === 0) {
+    return reply.code(404).send({ error: "none of the theme's lights are here" });
+  }
+
+  const results = await Promise.allSettled(
+    targets.map((b) =>
+      lightControl.setLight(b.entityId, {
+        on: b.on,
+        ...(b.on && typeof b.brightness === "number"
+          ? { brightness: b.brightness }
+          : {}),
+        ...(b.on && b.rgb ? { rgb: b.rgb } : {}),
+      }),
+    ),
+  );
+  if (results.every((r) => r.status === "rejected")) {
     return reply.code(502).send({ error: "home assistant unreachable" });
   }
   await poller.refreshLights();
@@ -244,6 +365,7 @@ app.get("/api/stream", (request, reply) => {
   const unsubPoller = poller.subscribe(() => send(frame()));
   const unsubTasks = tasks.subscribe(() => send(frame()));
   const unsubMeals = meals.subscribe(() => send(frame()));
+  const unsubLights = lightStore.subscribe(() => send(frame()));
   const shoppingListener = () => send(frame());
   shoppingListeners.add(shoppingListener);
   const keepalive = setInterval(() => reply.raw.write(": ping\n\n"), 20_000);
@@ -253,6 +375,7 @@ app.get("/api/stream", (request, reply) => {
     unsubPoller();
     unsubTasks();
     unsubMeals();
+    unsubLights();
     shoppingListeners.delete(shoppingListener);
   });
 });
@@ -641,6 +764,7 @@ if (existsSync(webDist)) {
 // also serves the cached view seconds sooner on a cold boot.
 await tasks.load();
 await meals.load();
+await lightStore.load();
 await app.listen({ port: PORT, host: "0.0.0.0" });
 await poller.start();
 scheduleDailyChoreReport(notifier, () => tasks.view(), CHORE_REPORT_TIME);

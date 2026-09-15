@@ -1389,20 +1389,253 @@ body {
 
 /* ---- Lights tab -------------------------------------------------------- */
 
+.lightstab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap);
+  overflow-y: auto;
+  min-height: 0;
+}
+
 .lights {
   list-style: none;
   margin: 0;
-  padding: var(--gap);
+  padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--gap);
-  overflow-y: auto;
-  min-height: 0;
 }
 
 .lights__empty {
   padding: var(--gap);
   color: var(--text-dim);
+}
+
+/* Themes bar + edit toggle */
+.lights__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+.themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.theme {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #20222b;
+  border: 1px solid var(--line);
+}
+
+.theme__apply {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.5rem 0.95rem;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.theme__del {
+  border: none;
+  border-inline-start: 1px solid var(--line);
+  background: transparent;
+  color: #ff8b8b;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.7rem;
+  cursor: pointer;
+}
+
+.theme__save {
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 0.5rem 0.95rem;
+  min-height: 40px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.lights__edit {
+  border: 1px solid var(--line);
+  background: #20222b;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.5rem 1.1rem;
+  min-height: 40px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lights__edit--on {
+  background: #2c6cf6;
+  border-color: #2c6cf6;
+  color: #fff;
+}
+
+/* Room grouping */
+.room {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.room__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.room__name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.room__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.room__btn {
+  border: 1px solid var(--line);
+  background: #20222b;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  min-height: 36px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.room__swatches {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.swatch--sm {
+  min-height: 30px;
+  width: 30px;
+  aspect-ratio: 1;
+}
+
+.room__white {
+  border: 1px solid var(--line);
+  background: #20222b;
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  min-height: 30px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.light__room {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.light__room select {
+  flex: 1;
+  min-height: 40px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: #20222b;
+  color: var(--text);
+  padding: 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Name entry modal (new room / save theme) */
+.lmodal {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+}
+
+.lmodal__box {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 1.5);
+  padding: 1.25rem;
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.lmodal__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.lmodal__input {
+  min-height: 46px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  padding: 0 0.75rem;
+  font-size: 1rem;
+}
+
+.lmodal__row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.lmodal__cancel,
+.lmodal__save {
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 0 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lmodal__cancel {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+.lmodal__save {
+  border: none;
+  background: #2c6cf6;
+  color: #fff;
+}
+
+.lmodal__save:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .light {

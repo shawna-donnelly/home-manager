@@ -257,7 +257,9 @@ export default function App() {
       {tab === "meals" && snapshot?.meals && (
         <Meals view={snapshot.meals} now={now} live={snapshot.shopping} />
       )}
-      {tab === "lights" && lights.length > 0 && <Lights lights={lights} />}
+      {tab === "lights" && lights.length > 0 && (
+        <Lights lights={lights} config={snapshot?.lightConfig} />
+      )}
       {tab === "map" && locations.length > 0 && (
         <MapView locations={locations} now={now} avatars={avatars} />
       )}

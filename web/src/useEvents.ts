@@ -64,6 +64,25 @@ export interface LightState {
   updatedAt: string;
 }
 
+export interface ThemeBulb {
+  entityId: string;
+  on: boolean;
+  brightness?: number;
+  rgb?: [number, number, number];
+}
+
+export interface Theme {
+  id: string;
+  name: string;
+  bulbs: ThemeBulb[];
+}
+
+export interface LightConfig {
+  /** Bulb entity id → room name. */
+  rooms: Record<string, string>;
+  themes: Theme[];
+}
+
 export interface Chore {
   id: string;
   kid: string;
@@ -124,6 +143,8 @@ export interface Snapshot {
   locations?: PersonLocation[];
   forecast?: ForecastDay[];
   lights?: LightState[];
+  /** Room assignments and saved themes for the Lights tab. */
+  lightConfig?: LightConfig;
   tasks?: TasksView;
   meals?: MealsView;
   /** Live shopping items, pushed when Home Assistant reports a change. */
