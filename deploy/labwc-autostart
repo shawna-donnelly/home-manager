@@ -5,12 +5,19 @@
 
 # Portrait: rotate the HDMI output 90°. Retry, because at autostart time the
 # HDMI output may not be enumerated yet (a bare one-shot silently no-ops and
-# the screen stays landscape). labwc auto-rotates touch to match this
-# transform, so no touch calibration is needed (see 99-wall-touch.rules).
+# the screen stays landscape). Touch follows the output transform via the
+# <touch mapToOutput> rule in rc.xml.
 (for i in 1 2 3 4 5 6 7 8; do
    wlr-randr --output HDMI-A-1 --transform 90 && break
    sleep 1
- done) &
+ done
+ # labwc binds the touchscreen at startup, while the output may still be
+ # landscape; taps then land in the wrong place even though the picture is
+ # portrait. Re-read config once the rotation has landed so <touch mapToOutput>
+ # is recomputed against the now-portrait output. This is the fix for the
+ # intermittent "content is right, taps are off" boots.
+ sleep 1
+ kill -HUP "$(pgrep -x labwc)" 2>/dev/null) &
 
 # Blank the display overnight rather than running the panel 24/7.
 # Known issue: on some panels the display does not wake cleanly from wlopm.

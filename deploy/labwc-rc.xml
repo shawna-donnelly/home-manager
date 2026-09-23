@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!--
+  labwc config for the wall kiosk. Copy to ~/.config/labwc/rc.xml.
+
+  The panel's touchscreen exposes two Wacom interfaces ("Wacom TouchScreen Pen"
+  and "…Finger"), and they re-enumerate across USB paths between boots. A rule
+  pinned to one device name (worse, a name with a "(USB 3-2.2)" suffix that
+  labwc doesn't actually report) matched only sometimes, so touch was left in
+  landscape coordinates while the display was portrait — taps landed in the
+  wrong place. An empty/omitted deviceName maps EVERY touch device, so both
+  interfaces on any USB path follow the HDMI output's 90° portrait transform.
+-->
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <touch>
+    <mapToOutput>HDMI-A-1</mapToOutput>
+    <mouseEmulation>yes</mouseEmulation>
+  </touch>
+</openbox_config>
